@@ -1,0 +1,9 @@
+.vscode
+build
+*.o
+core.[1-9]*
+test
+test-*
+test.s
+xxx
+example
