@@ -1,18 +1,20 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+
+#include "snap2exe.h"
 
 static int bss_var;
 static int data_var = 0xbef03e; //before
 
-int is_snapshot = 0;
-
-void checkpoint() {
-    is_snapshot = 1;
-    getc(stdin);
+void bye() {
+    printf("Bye!\n");
 }
 
 int main()
 {
+    atexit(bye);
+
     bss_var = 0x13371337;
     int stack_var = 0xcafecafe;
     int *heap_var = (int *)malloc(sizeof(int));
@@ -23,10 +25,14 @@ int main()
     printf("stack_var..[%p]=0x%08x\n", &stack_var, stack_var);
     printf("heap_var...[%p]=0x%08x\n", heap_var, *heap_var);
 
-    checkpoint();
+    // int ret = checkpoint(1);
+    // printf("checkpoint ret: %d\n", ret);
+    // if (ret) {
+    //     printf("continued from snapshot!\n");
+    // }
+    getchar();
 
     data_var = 0xaf7e3; //after
-    printf("continued from snapshot\n");
     printf("bss_var....[%p]=0x%08x\n", &bss_var, bss_var);
     printf("data_var...[%p]=0x%08x\n", &data_var, data_var);
     printf("stack_var..[%p]=0x%08x\n", &stack_var, stack_var);

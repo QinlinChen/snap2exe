@@ -4,7 +4,7 @@ install_prefix := $$HOME/snap2exe
 # define project target, includes, and sources
 snap2exe_bin          := $(build_dir)/snap2exe
 snap2exe_include_dirs := ./include
-snap2exe_srcs         := $(shell find src/ -name "*.c")
+snap2exe_srcs         := $(shell find src/ lib/ -name "*.c")
 
 # compile options
 CC     := gcc
@@ -26,13 +26,10 @@ $(obj_dir)/%.o: %.c
 
 -include $(objs:.o/.d)
 
-.PHONY: clean count install
+.PHONY: clean install test example
 
 clean:
 	-rm -rf $(build_dir)
-
-count:
-	@find . -name "*.[ch]" | xargs cat | wc -l
 
 install: $(snap2exe_bin)
 	@mkdir -p $(install_prefix)
@@ -44,3 +41,6 @@ install: $(snap2exe_bin)
 
 test: test.c
 	$(CC) -o $@ $^ -no-pie -static -g
+
+example: example.c lib/*.c include/snap2exe.h
+	$(CC) -o $@ -Wall -I ./include example.c lib/*.c
