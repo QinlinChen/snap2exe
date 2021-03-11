@@ -101,21 +101,21 @@ int snap2exe(int pid, const char *new_exec)
     struct snapshot ss;
     struct exe ex;
 
-    if (build_snapshot(&ss, pid) < 0) {
+    if (snapshot_build(&ss, pid) < 0) {
         perror("build snapshot error");
         return -1;
     }
 
-    show_snapshot(&ss);
+    snapshot_show(&ss);
 
     int fd = open(new_exec, O_CREAT|O_RDWR, 0700);
     if (fd < 0)
         return -1;
 
-    if (build_exe_from_snapshot(&ex, &ss) < 0)
+    if (exe_build_from_snapshot(&ex, &ss) < 0)
         return -1;
 
-    int ret = write_exe(fd, &ex);
+    int ret = exe_save(fd, &ex);
     exe_free_segs(&ex);
     close(fd);
     return ret;

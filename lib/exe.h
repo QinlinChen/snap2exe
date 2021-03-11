@@ -19,10 +19,10 @@ struct exe {
     struct segment segs[MAX_SEGMENTS];
 };
 
-int init_exe(struct exe *ex);
+int exe_init(struct exe *ex);
 void exe_free_segs(struct exe *ex);
-int build_exe_from_snapshot(struct exe *ex, struct snapshot *ss);
-int write_exe(int fd, struct exe *ex);
+int exe_build_from_snapshot(struct exe *ex, struct snapshot *ss);
+int exe_save(int fd, struct exe *ex);
 
 
 #endif // _EXE_H

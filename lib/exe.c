@@ -8,7 +8,7 @@
 
 #include "elfcommon.h"
 
-int init_exe(struct exe *ex)
+int exe_init(struct exe *ex)
 {
     memset(ex, 0, sizeof(*ex));
 
@@ -52,14 +52,14 @@ void exe_free_segs(struct exe *ex)
 }
 
 static int exe_dup_segs(struct exe *ex, struct snapshot *ss);
-static int exe_add_segment(struct exe *ex, Elf64_Phdr *phdr, char *data);
+static int exe_add_seg(struct exe *ex, Elf64_Phdr *phdr, char *data);
 static uintptr_t exe_add_restore_seg(struct exe *ex, struct snapshot *ss);
 static char *generate_restore_code(int size, struct snapshot *ss);
 static uintptr_t find_available_vaddr(struct exe *ex);
 
-int build_exe_from_snapshot(struct exe *ex, struct snapshot *ss)
+int exe_build_from_snapshot(struct exe *ex, struct snapshot *ss)
 {
-    init_exe(ex);
+    exe_init(ex);
 
     if (exe_dup_segs(ex, ss) != 0)
         return -1;
@@ -99,7 +99,7 @@ static int exe_dup_segs(struct exe *ex, struct snapshot *ss)
         /* phdr.p_offset will be filled when flushed to file. */
 
         char *data = alloc_read_proc_map(ss->pid, map);
-        if (exe_add_segment(ex, &phdr, data) < 0) {
+        if (exe_add_seg(ex, &phdr, data) < 0) {
             printf("exceed MAX_SEGMENTS\n");
             exe_free_segs(ex);
             return -1;
@@ -110,7 +110,7 @@ static int exe_dup_segs(struct exe *ex, struct snapshot *ss)
 }
 
 /* Add a segment data and a relevant program header. */
-static int exe_add_segment(struct exe *ex, Elf64_Phdr *phdr, char *data)
+static int exe_add_seg(struct exe *ex, Elf64_Phdr *phdr, char *data)
 {
     if (ex->n_segs >= MAX_SEGMENTS)
         return -1;
@@ -141,7 +141,7 @@ static uintptr_t exe_add_restore_seg(struct exe *ex, struct snapshot *ss)
     phdr.p_memsz = phdr.p_filesz;
     phdr.p_align = PAGE_SIZE;
 
-    if (exe_add_segment(ex, &phdr, restore_code) != 0) {
+    if (exe_add_seg(ex, &phdr, restore_code) != 0) {
         free(restore_code);
         return -1;
     }
@@ -267,7 +267,7 @@ static uintptr_t find_available_vaddr(struct exe *ex)
 
 static void update_metadata_phdr(struct exe *ex);
 
-int write_exe(int fd, struct exe *ex)
+int exe_save(int fd, struct exe *ex)
 {
     update_metadata_phdr(ex);
 

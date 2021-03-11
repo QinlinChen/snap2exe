@@ -12,7 +12,7 @@ static char *substr(char *str, regmatch_t *match);
 static long hexstr_to_long(const char *str);
 static int str_to_prot(const char *perms);
 
-int build_snapshot(struct snapshot *ss, pid_t pid)
+int snapshot_build(struct snapshot *ss, pid_t pid)
 {
     ss->pid = pid;
     ss->n_maps = 0;
@@ -120,7 +120,7 @@ static int str_to_prot(const char *perms)
     return prot;
 }
 
-void show_snapshot(struct snapshot *ss)
+void snapshot_show(struct snapshot *ss)
 {
     printf("Program Status\n");
     struct user_regs_struct *r = &ss->regs;

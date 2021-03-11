@@ -19,8 +19,8 @@ struct snapshot {
     struct proc_map maps[MAX_PROC_MAPS];
 };
 
-int build_snapshot(struct snapshot *ss, pid_t pid);
-void show_snapshot(struct snapshot *ss);
+int snapshot_build(struct snapshot *ss, pid_t pid);
+void snapshot_show(struct snapshot *ss);
 
 char *alloc_read_proc_map(pid_t pid, struct proc_map *map);
 
