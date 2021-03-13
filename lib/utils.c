@@ -30,7 +30,7 @@ int ptrace_read(pid_t pid, void *addr, void *buf, size_t size)
         src += minsize;
         dst += minsize;
     }
-    
+
     while (size >= sizeof(long)) {
         long data = ptrace_peekdata(pid, src);
         if (data == -1 && errno != 0)

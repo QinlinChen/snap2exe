@@ -5,7 +5,7 @@
 
 #include "snapshot.h"
 
-#define MAX_SEGMENTS MAX_PROC_MAPS
+#define MAX_SEGMENTS MAX_MEM_MAPS
 
 struct segment {
     Elf64_Phdr phdr;
@@ -19,10 +19,8 @@ struct exe {
     struct segment segs[MAX_SEGMENTS];
 };
 
-int exe_init(struct exe *ex);
-void exe_free_segs(struct exe *ex);
 int exe_build_from_snapshot(struct exe *ex, struct snapshot *ss);
+void exe_free(struct exe *ex);
 int exe_save(int fd, struct exe *ex);
-
 
 #endif // _EXE_H

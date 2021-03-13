@@ -1,5 +1,5 @@
-#ifndef __ELF_COMMON_H__
-#define __ELF_COMMON_H__
+#ifndef _ELFCOMMON_H
+#define _ELFCOMMON_H
 
 #include <elf.h>
 
@@ -10,4 +10,4 @@ char *elf_get_section_strings(char *data);
 char *elf_get_section_name(char *data, Elf64_Shdr *s);
 const char *elf_seg_type_to_str(Elf64_Word type);
 
-#endif
+#endif // _ELFCOMMON_H

@@ -4,10 +4,12 @@
 #include <regex.h>
 #include <sys/mman.h>
 
+#include "snap2exe/snap2exe.h"
 #include "utils.h"
 
-static int build_proc_maps(struct snapshot *ss);
-static int add_proc_map(struct snapshot *ss, struct proc_map *map);
+static int build_mem_maps(struct snapshot *ss);
+static int extract_mem_map(char *line, regex_t *reg, struct mem_map *map);
+static int add_mem_map(struct snapshot *ss, struct mem_map *map);
 static char *substr(char *str, regmatch_t *match);
 static long hexstr_to_long(const char *str);
 static int str_to_prot(const char *perms);
@@ -17,10 +19,12 @@ int snapshot_build(struct snapshot *ss, pid_t pid)
     ss->pid = pid;
     ss->n_maps = 0;
 
-    if (ptrace_getregs(pid, &ss->regs) != 0)
+    if (ptrace_getregs(pid, &ss->regs) != 0) {
+        s2e_unix_err("ptrace getregs error");
         return -1;
+    }
 
-    if (build_proc_maps(ss) < 0)
+    if (build_mem_maps(ss) < 0)
         return -1;
 
     // TODO: build fs info.
@@ -29,16 +33,16 @@ int snapshot_build(struct snapshot *ss, pid_t pid)
 }
 
 /* Parse memory maps from /proc/[pid]/maps. */
-static int build_proc_maps(struct snapshot *ss) {
+static int build_mem_maps(struct snapshot *ss) {
     regex_t reg;
     int rc = regcomp(&reg,
                      "([0-9a-fA-F]+)\\-([0-9a-fA-f]+)\\s+([rwxps-]+)\\s+"
                      "[0-9a-fA-F]+\\s+[0-9a-fA-F]+:[0-9a-fA-F]+\\s+[0-9]+\\s+(.*)",
                      REG_EXTENDED);
     if (rc != 0) {
-        char errbuf[MAXLINE];
-        regerror(rc, &reg, errbuf, MAXLINE);
-        printf("regex compilation failed: %s\n", errbuf);
+        char errbuf[MAXBUF];
+        regerror(rc, &reg, errbuf, MAXBUF);
+        s2e_lib_err("regex compilation failed: %s", errbuf);
         return -1;
     }
 
@@ -46,48 +50,69 @@ static int build_proc_maps(struct snapshot *ss) {
     char filepath[MAXLINE];
     sprintf(filepath, "/proc/%d/maps", ss->pid);
     if ((fp = fopen(filepath, "r")) == NULL) {
-        perror("Fail to open file");
-        return -1;
+        s2e_unix_err("fail to open file: %s", filepath);
+        goto errout;
     }
 
+    int ret;
     char line[MAXLINE];
-    regmatch_t match[5];
+    struct mem_map map;
     while (readline(fp, line, MAXLINE) != NULL) {
-        if (regexec(&reg, line, ARRAY_LEN(match), match, 0) == 0) {
-            char *perms = substr(line, &match[3]);
-            if (!perms) {
-                printf("invalid format for perm???\n");
-                goto errout;
-            }
-            if (strncmp(perms, "----", 4) == 0)
-                continue; /* Maybe we can ignore this kind of maps. */
-
-            struct proc_map map;
-            map.start = (void *)hexstr_to_long(substr(line, &match[1]));
-            map.end = (void *)hexstr_to_long(substr(line, &match[2]));
-            map.prot = str_to_prot(perms);
-
-            if (add_proc_map(ss, &map) < 0) {
-                printf("exccess MAX_PROC_MAPS!");
-                goto errout;
-            }
-        }
+        ret = extract_mem_map(line, &reg, &map);
+        if (ret == -1)
+            goto errout;
+        if (ret == 0)
+            continue;
+        if (add_mem_map(ss, &map) < 0)
+            goto errout;
     }
 
-    return fclose(fp);
+    fclose(fp);
+    regfree(&reg);
+    return 0;
 
 errout:
     if (fp)
         fclose(fp);
+    regfree(&reg);
     return -1;
 }
 
-static int add_proc_map(struct snapshot *ss, struct proc_map *map)
+static int extract_mem_map(char *line, regex_t *reg, struct mem_map *map)
 {
-    if (ss->n_maps >= MAX_PROC_MAPS)
-        return -1;
+    regmatch_t match[5];
+    if (regexec(reg, line, ARRAY_LEN(match), match, 0) != 0)
+        return 0;
 
-    struct proc_map *new_map = &ss->maps[ss->n_maps];
+    char *perms = substr(line, &match[3]);
+    if (!perms) {
+        s2e_lib_err("cannot match permission string in /proc/[pid]/maps");
+        return -1;
+    }
+    if (strncmp(perms, "---", 3) == 0)
+        return 0; /* Maybe we can ignore this kind of maps. */
+
+    void *start = (void *)hexstr_to_long(substr(line, &match[1]));
+    void *end = (void *)hexstr_to_long(substr(line, &match[2]));
+    if (start == NULL || end == NULL) {
+        s2e_lib_err("cannot parse address string in /proc/[pid]/maps");
+        return -1;
+    }
+
+    map->start = start;
+    map->end = end;
+    map->prot = str_to_prot(perms);
+    return 1;
+}
+
+static int add_mem_map(struct snapshot *ss, struct mem_map *map)
+{
+    if (ss->n_maps >= MAX_MEM_MAPS) {
+        s2e_lib_err("exccess MAX_MEM_MAPS");
+        return -1;
+    }
+
+    struct mem_map *new_map = &ss->maps[ss->n_maps];
     ss->n_maps++;
     memcpy(new_map, map, sizeof(*map));
     return 0;
@@ -95,7 +120,7 @@ static int add_proc_map(struct snapshot *ss, struct proc_map *map)
 
 static char *substr(char *str, regmatch_t *match)
 {
-    assert(match->rm_eo >= match->rm_so);
+    assert(str && match->rm_eo >= match->rm_so);
     if (match->rm_so == match->rm_eo)
         return NULL;
     return str + match->rm_so;
@@ -103,7 +128,9 @@ static char *substr(char *str, regmatch_t *match)
 
 static long hexstr_to_long(const char *str)
 {
-    long ret;
+    if (!str)
+        return 0;
+    long ret = 0;
     sscanf(str, "%lx", &ret);
     return ret;
 }
@@ -138,7 +165,7 @@ void snapshot_show(struct snapshot *ss)
            r->cs, r->ss, r->ds, r->es, r->fs, r->gs);
 
     printf("\nMemory maps\n");
-    struct proc_map *pmap = ss->maps;
+    struct mem_map *pmap = ss->maps;
     for (int i = 0; i < ss->n_maps; i++, pmap++) {
         printf("%p-%p %c%c%c\n", pmap->start, pmap->end,
                pmap->prot & PROT_READ ? 'r' : '-',
@@ -147,13 +174,16 @@ void snapshot_show(struct snapshot *ss)
     }
 }
 
-char *alloc_read_proc_map(pid_t pid, struct proc_map *map)
+char *dump_mem_map(pid_t pid, struct mem_map *map)
 {
     char *data = malloc(map->end - map->start);
-    if (!data)
+    if (!data) {
+        s2e_unix_err("malloc error");
         return NULL;
+    }
 
     if (ptrace_read(pid, map->start, data, map->end - map->start) < 0) {
+        s2e_unix_err("ptrace read error: %p-%p", map->start, map->end);
         free(data);
         return NULL;
     }

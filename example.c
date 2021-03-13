@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "snap2exe.h"
+#include "snap2exe/snap2exe.h"
 
 static int bss_var;
 static int data_var = 0xbef03e; //before

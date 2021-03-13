@@ -1,5 +1,5 @@
-#ifndef _SNAP2EXE_UTILS_H
-#define _SNAP2EXE_UTILS_H
+#ifndef _UTILS_H
+#define _UTILS_H
 
 #include <stdio.h>
 #include <signal.h>
@@ -40,5 +40,4 @@ int proc_str_read(pid_t pid, void *addr, char *buf, size_t size);
 int detached_fork();
 int find_in_array(int val, int arr[], int size);
 
-
-#endif /* _SNAP2EXE_UTILS_H */
+#endif /* _UTILS_H */

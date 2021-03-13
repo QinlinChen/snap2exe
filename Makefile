@@ -42,5 +42,5 @@ install: $(snap2exe_bin)
 test: test.c
 	$(CC) -o $@ $^ -no-pie -static -g
 
-example: example.c lib/*.c include/snap2exe.h
+example: example.c lib/*.c include/snap2exe/*.h
 	$(CC) -o $@ -Wall -I ./include example.c lib/*.c

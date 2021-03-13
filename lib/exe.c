@@ -6,9 +6,37 @@
 #include <sys/prctl.h>
 #include <asm/prctl.h>
 
+#include "snap2exe/snap2exe.h"
 #include "elfcommon.h"
 
-int exe_init(struct exe *ex)
+#define PAGE_ROUNDUP(off) (((off) + PAGE_SIZE - 1) & PAGE_MASK);
+
+static int exe_init(struct exe *ex);
+static int exe_dup_segs(struct exe *ex, struct snapshot *ss);
+static int exe_add_seg(struct exe *ex, Elf64_Phdr *phdr, char *data);
+static void exe_free_segs(struct exe *ex);
+static uintptr_t exe_add_restore_seg(struct exe *ex, struct snapshot *ss);
+static char *generate_restore_code(struct snapshot *ss, size_t *size);
+static uintptr_t find_available_vaddr(struct exe *ex);
+static void update_metadata_phdr(struct exe *ex);
+
+int exe_build_from_snapshot(struct exe *ex, struct snapshot *ss)
+{
+    exe_init(ex);
+
+    if (exe_dup_segs(ex, ss) != 0)
+        return -1;
+
+    ex->ehdr.e_entry = exe_add_restore_seg(ex, ss);
+    if (ex->ehdr.e_entry == 0) {
+        exe_free_segs(ex);
+        return -1;
+    }
+
+    return 0;
+}
+
+static int exe_init(struct exe *ex)
 {
     memset(ex, 0, sizeof(*ex));
 
@@ -43,77 +71,56 @@ int exe_init(struct exe *ex)
     return 0;
 }
 
-void exe_free_segs(struct exe *ex)
-{
-    for (int i = 0; i < ex->n_segs; i++)
-        if (ex->segs[i].data)
-            free(ex->segs[i].data);
-    memset(ex->segs, 0, sizeof(ex->segs));
-}
-
-static int exe_dup_segs(struct exe *ex, struct snapshot *ss);
-static int exe_add_seg(struct exe *ex, Elf64_Phdr *phdr, char *data);
-static uintptr_t exe_add_restore_seg(struct exe *ex, struct snapshot *ss);
-static char *generate_restore_code(int size, struct snapshot *ss);
-static uintptr_t find_available_vaddr(struct exe *ex);
-
-int exe_build_from_snapshot(struct exe *ex, struct snapshot *ss)
-{
-    exe_init(ex);
-
-    if (exe_dup_segs(ex, ss) != 0)
-        return -1;
-
-    ex->ehdr.e_entry = exe_add_restore_seg(ex, ss);
-    if (ex->ehdr.e_entry == 0) {
-        exe_free_segs(ex);
-        return -1;
-    }
-
-    return 0;
-}
-
 #define USER_SPACE_END  0x800000000000ULL
 
 static int exe_dup_segs(struct exe *ex, struct snapshot *ss)
 {
-    struct proc_map *map = ss->maps;
-    for (int i = 0; i < ss->n_maps; i++, map++) {
-        if ((uintptr_t)map->start >= USER_SPACE_END)
+    char *data = NULL;
+    Elf64_Phdr phdr;
+    struct mem_map *pmap = ss->maps;
+
+    for (int i = 0; i < ss->n_maps; i++, pmap++) {
+        if ((uintptr_t)pmap->start >= USER_SPACE_END)
             continue;
 
-        Elf64_Phdr phdr;
         memset(&phdr, 0, sizeof(phdr));
         phdr.p_type = PT_LOAD;
-        if (map->prot & PROT_READ)
+        if (pmap->prot & PROT_READ)
             phdr.p_flags |= PF_R;
-        if (map->prot & PROT_WRITE)
+        if (pmap->prot & PROT_WRITE)
             phdr.p_flags |= PF_W;
-        if (map->prot & PROT_EXEC)
+        if (pmap->prot & PROT_EXEC)
             phdr.p_flags |= PF_X;
-        phdr.p_vaddr = (uintptr_t)map->start;
+        phdr.p_vaddr = (uintptr_t)pmap->start;
         phdr.p_paddr = phdr.p_vaddr;
-        phdr.p_memsz = map->end - map->start;
+        phdr.p_memsz = pmap->end - pmap->start;
         phdr.p_filesz = phdr.p_memsz;
         phdr.p_align = PAGE_SIZE;
         /* phdr.p_offset will be filled when flushed to file. */
 
-        char *data = alloc_read_proc_map(ss->pid, map);
-        if (exe_add_seg(ex, &phdr, data) < 0) {
-            printf("exceed MAX_SEGMENTS\n");
-            exe_free_segs(ex);
-            return -1;
-        }
+        data = dump_mem_map(ss->pid, pmap);
+        if (!data)
+            continue; /* Ignore this error; dump mem maps as many as possible. */
+        if (exe_add_seg(ex, &phdr, data) < 0)
+            goto errout;
     }
 
     return 0;
+
+errout:
+    exe_free_segs(ex);
+    if (data)
+        free(data);
+    return -1;
 }
 
 /* Add a segment data and a relevant program header. */
 static int exe_add_seg(struct exe *ex, Elf64_Phdr *phdr, char *data)
 {
-    if (ex->n_segs >= MAX_SEGMENTS)
+    if (ex->n_segs >= MAX_SEGMENTS) {
+        s2e_lib_err("exceed MAX_SEGMENTS");
         return -1;
+    }
 
     struct segment *new_seg = &ex->segs[ex->n_segs];
     ex->n_segs++;
@@ -127,8 +134,8 @@ static int exe_add_seg(struct exe *ex, Elf64_Phdr *phdr, char *data)
 
 static uintptr_t exe_add_restore_seg(struct exe *ex, struct snapshot *ss)
 {
-    const int size = 512; /* should be more than enough */
-    char *restore_code = generate_restore_code(size, ss);
+    size_t size;
+    char *restore_code = generate_restore_code(ss, &size);
     if (!restore_code)
         return 0;
 
@@ -143,10 +150,9 @@ static uintptr_t exe_add_restore_seg(struct exe *ex, struct snapshot *ss)
 
     if (exe_add_seg(ex, &phdr, restore_code) != 0) {
         free(restore_code);
-        return -1;
+        return 0;
     }
 
-    printf("Generate restore segment at 0x%lx\n", phdr.p_vaddr);
     return phdr.p_vaddr;
 }
 
@@ -197,18 +203,19 @@ static uintptr_t exe_add_restore_seg(struct exe *ex, struct snapshot *ss)
 #define ADD_RET(buf)       ADD_B(buf, 0xc3)
 #define ADD_SYSCALL(buf)   ADD_W(buf, 0x050f);
 
-static char *generate_restore_code(int size, struct snapshot *ss)
+/* There are several ways to do this, one being the automatic generation
+   of assembly file to do that and then compiling it. However, this would
+   require an assembler present. Instead, a simpler approach can be used,
+   simply write the exact machine code... */
+static char *generate_restore_code(struct snapshot *ss, size_t *size)
 {
-    /* There are several ways to do this. One being the automatic generation
-     * of assembly file to do that and then compiling it, however, this would
-     * require an assembler present. Instead, a simpler approach can be used,
-     * simply write the exact machine code...
-     */
-    char *buf = malloc(size);
+    char *buf = malloc(PAGE_SIZE);
     if (!buf)
         return NULL;
-    char *start = buf;
+    if (size)
+        *size = PAGE_SIZE;
 
+    char *start = buf;
     struct user_regs_struct *r = &ss->regs;
 
     // ADD_MOV_I2AX(buf, r->es);
@@ -263,61 +270,77 @@ static uintptr_t find_available_vaddr(struct exe *ex)
     return 0x200000UL; // TODO: fix this hard code.
 }
 
-#define PAGE_ALIGN(off) (((off) + PAGE_SIZE - 1) & PAGE_MASK);
+void exe_free(struct exe *ex)
+{
+    exe_free_segs(ex);
+}
 
-static void update_metadata_phdr(struct exe *ex);
+static void exe_free_segs(struct exe *ex)
+{
+    for (int i = 0; i < ex->n_segs; i++)
+        if (ex->segs[i].data)
+            free(ex->segs[i].data);
+    memset(ex->segs, 0, sizeof(ex->segs[0])*ex->n_segs);
+    ex->n_segs = 0;
+}
 
 int exe_save(int fd, struct exe *ex)
 {
     update_metadata_phdr(ex);
 
-    /* The offset has to be page aligned!  */
-    off_t off = PAGE_ALIGN(ex->ehdr.e_phoff + ex->ehdr.e_phnum*ex->ehdr.e_phentsize);
-    if (lseek(fd, off, SEEK_SET) < 0)
+    /* The offset has to be page aligned! */
+    off_t off = PAGE_ROUNDUP(ex->ehdr.e_phoff + ex->ehdr.e_phnum*ex->ehdr.e_phentsize);
+    if (lseek(fd, off, SEEK_SET) < 0) {
+        s2e_unix_err("lseek error");
         return -1;
+    }
 
     for (int i = 0; i < ex->n_segs; i++) {
         struct segment *wr_seg = &ex->segs[i];
-        printf("Writing segment with offset 0x%lx, vaddr 0x%lx...",
-               wr_seg->phdr.p_offset, wr_seg->phdr.p_vaddr);
-        if (!wr_seg->data) {
-            printf("No data for segment at 0x%lx\n", wr_seg->phdr.p_vaddr);
-            continue;
+        assert(wr_seg->data);
+        if (write(fd, wr_seg->data, wr_seg->phdr.p_filesz) != wr_seg->phdr.p_filesz) {
+            s2e_unix_err("write segment error");
+            return -1;
         }
-
-        if (write(fd, wr_seg->data, wr_seg->phdr.p_filesz) != wr_seg->phdr.p_filesz)
-            return -1;
-
         wr_seg->phdr.p_offset = off;
-        off = PAGE_ALIGN(off + wr_seg->phdr.p_filesz);
-        if (lseek(fd, off, SEEK_SET) < 0)
+
+        off = PAGE_ROUNDUP(off + wr_seg->phdr.p_filesz);
+        if (lseek(fd, off, SEEK_SET) < 0) {
+            s2e_unix_err("lseek error");
             return -1;
-        printf("Done.\n");
+        }
     }
 
+    /* Write metadata segment, i.e., elf header, program headers. */
     off = ex->metadata_phdr.p_offset;
     assert(off == 0);
-    if (lseek(fd, off, SEEK_SET) < 0)
+    if (lseek(fd, off, SEEK_SET) < 0) {
+        s2e_unix_err("lseek error");
         return -1;
+    }
+    if (write(fd, &ex->ehdr, sizeof(ex->ehdr)) != sizeof(ex->ehdr)) {
+        s2e_unix_err("write elf header error");
+        return -1;
+    }
 
-    printf("Writing metadata segment with offset 0x%lx, vaddr 0x%lx...",
-           ex->metadata_phdr.p_offset, ex->metadata_phdr.p_vaddr);
-    if (write(fd, &ex->ehdr, sizeof(ex->ehdr)) != sizeof(ex->ehdr))
+    if (lseek(fd, ex->ehdr.e_phoff, SEEK_SET) < 0) {
+        s2e_unix_err("lseek error");
         return -1;
-
-    if (lseek(fd, ex->ehdr.e_phoff, SEEK_SET) < 0)
-        return -1;
+    }
     if (write(fd, &(ex->metadata_phdr),
-              sizeof(ex->metadata_phdr)) != sizeof(ex->metadata_phdr))
+              sizeof(ex->metadata_phdr)) != sizeof(ex->metadata_phdr)) {
+        s2e_unix_err("write metadata program header error");
         return -1;
+    }
 
     for (int i = 0; i < ex->n_segs; i++) {
         Elf64_Phdr *wr_phdr = &ex->segs[i].phdr;
-        if (write(fd, wr_phdr, sizeof(*wr_phdr)) != sizeof(*wr_phdr))
+        if (write(fd, wr_phdr, sizeof(*wr_phdr)) != sizeof(*wr_phdr)) {
+            s2e_unix_err("write metadata program header error");
             return -1;
+        }
     }
 
-    printf("Done.\n");
     return 0;
 }
 

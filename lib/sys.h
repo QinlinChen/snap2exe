@@ -1,8 +1,8 @@
-#ifndef _SNAP2EXE_SYS_H
-#define _SNAP2EXE_SYS_H
+#ifndef _SYS_H
+#define _SYS_H
 
 #define _POSIX_C_SOURCE 200809L
-#define _XOPEN_SOURCE 700
+#define _XOPEN_SOURCE   700
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,4 +32,4 @@
 #define MAXNAME 1024
 #endif /* MAXNAME */
 
-#endif /* _SNAP2EXE_SYS_H */
+#endif /* _SYS_H */
