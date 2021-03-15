@@ -25,7 +25,7 @@ int main()
     printf("stack_var..[%p]=0x%08x\n", &stack_var, stack_var);
     printf("heap_var...[%p]=0x%08x\n", heap_var, *heap_var);
 
-    int ret = checkpoint(1);
+    int ret = checkpoint(1, "test-ckpt-snapshots");
     printf("checkpoint ret: %d\n", ret);
     if (ret) {
         printf("continued from snapshot!\n");

@@ -41,5 +41,6 @@ const char *file_type_str(mode_t mode);
 /* misc */
 int detached_fork();
 int find_in_array(int val, int arr[], int size);
+int mkdir_p(const char *path, mode_t mode);
 
 #endif /* _UTILS_H */

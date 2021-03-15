@@ -13,7 +13,7 @@ static void sync_as_tracer();
 /* Return  0 if continued from original processes.
    Return  1 if continued from recovered snapshot executables.
    Return -1 if error. */
-int checkpoint(int cond)
+int checkpoint(int cond, const char *save_dir)
 {
     // TODO: improve error reporting.
     if (!cond)
@@ -33,7 +33,7 @@ int checkpoint(int cond)
         }
         sync_as_tracer(pid);
 
-        if (snap2exe(pid, "cont") < 0) {
+        if (snap2exe(pid, save_dir) < 0) {
             perror("snap2exe error");
             exit_without_side_effects(EXIT_SUCCESS);
         }

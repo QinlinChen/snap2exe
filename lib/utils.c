@@ -339,3 +339,17 @@ int find_in_array(int val, int arr[], int size)
             return i;
     return -1;
 }
+
+int mkdir_p(const char *path, mode_t mode)
+{
+    char *sep = strrchr(path, '/');
+    if (sep) {
+        *sep = '\0';
+        if (mkdir_p(path, mode) < 0)
+            return -1;
+        *sep = '/';
+    }
+    if (mkdir(path, 0777) < 0 && errno != EEXIST)
+        return -1;
+    return 0;
+}

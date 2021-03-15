@@ -17,8 +17,8 @@ Just use `make`, and the binary `snap2exe` will be output to the `./build` direc
 ```bash
 $ gcc example.c -o example
 $ ./example &
-$ ./build/snap2exe $! example-cont  # need sudo
-$ ./example-cont                    # need sudo
+$ ./build/snap2exe $! save  # need sudo
+$ ./save/<time>/cont        # need sudo
 ```
 
 ## Limits
