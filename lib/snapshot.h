@@ -33,7 +33,7 @@ struct snapshot {
 
 int snapshot_build(struct snapshot *ss, pid_t pid);
 void snapshot_show(struct snapshot *ss);
-
-char *dump_mem_map(pid_t pid, struct mem_map *map);
+int snapshot_dump_opened_files(struct snapshot *ss, const char *dump_dir);
+char *fetch_mem_map(pid_t pid, struct mem_map *map);
 
 #endif // _SNAPSHOT_H

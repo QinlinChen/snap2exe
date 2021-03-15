@@ -228,7 +228,25 @@ void snapshot_show(struct snapshot *ss)
     }
 }
 
-char *dump_mem_map(pid_t pid, struct mem_map *map)
+int snapshot_dump_opened_files(struct snapshot *ss, const char *dump_dir)
+{
+    char dump_path[MAXPATH];
+    char src_path[MAXPATH];
+    struct fdinfo *pfdinfo = ss->fdinfo;
+    for (int i = 0; i < ss->n_fds; i++, pfdinfo++) {
+        if (!S_ISREG(pfdinfo->statbuf.st_mode))
+            continue;
+        snprintf(dump_path, ARRAY_LEN(dump_path), "%s/%d", dump_dir, pfdinfo->fd);
+        snprintf(src_path, ARRAY_LEN(src_path), "/proc/%d/fd/%d", ss->pid, pfdinfo->fd);
+        if (copy_file(dump_path, src_path) < 0) {
+            s2e_unix_err("copy '%s' to '%s' error", src_path, dump_path);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+char *fetch_mem_map(pid_t pid, struct mem_map *map)
 {
     char *data = malloc(map->end - map->start);
     if (!data) {

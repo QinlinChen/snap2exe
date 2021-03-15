@@ -37,6 +37,7 @@ int proc_str_read(pid_t pid, void *addr, char *buf, size_t size);
 char *readline(FILE *stream, char *buf, size_t size);
 void close_all_fds(int (*whitelist)(int));
 const char *file_type_str(mode_t mode);
+int copy_file(const char *dst, const char *src);
 
 /* misc */
 int detached_fork();

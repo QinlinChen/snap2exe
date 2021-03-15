@@ -312,6 +312,52 @@ const char *file_type_str(mode_t mode)
     return "unknown";
 }
 
+int copy_file(const char *dst_file, const char *src_file)
+{
+    int saved_errno;
+    int src_fd = -1, dst_fd = -1;
+
+    if ((src_fd = open(src_file, O_RDONLY)) < 0)
+        return -1;
+
+    if ((dst_fd = open(dst_file, O_WRONLY | O_CREAT | O_EXCL, 0600)) < 0)
+        goto errout;
+
+    char buf[4096];
+    ssize_t nread;
+    while ((nread = read(src_fd, buf, sizeof buf)) > 0) {
+        char *out_ptr = buf;
+        ssize_t nwritten;
+        do {
+            nwritten = write(dst_fd, out_ptr, nread);
+            if (nwritten >= 0) {
+                nread -= nwritten;
+                out_ptr += nwritten;
+            } else if (errno != EINTR) {
+                goto errout;
+            }
+        } while (nread > 0);
+    }
+
+    if (nread < 0)
+        goto errout;
+    if (close(dst_fd) < 0) {
+        dst_fd = -1;
+        goto errout;
+    }
+    close(src_fd);
+    return 0;
+
+errout:
+    saved_errno = errno;
+    if (src_fd >= 0)
+        close(src_fd);
+    if (dst_fd >= 0)
+        close(dst_fd);
+    errno = saved_errno;
+    return -1;
+}
+
 /* ------------------------------------------------
  *                     misc
  * ------------------------------------------------ */

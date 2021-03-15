@@ -98,7 +98,7 @@ static int exe_dup_segs(struct exe *ex, struct snapshot *ss)
         phdr.p_align = PAGE_SIZE;
         /* phdr.p_offset will be filled when flushed to file. */
 
-        data = dump_mem_map(ss->pid, pmap);
+        data = fetch_mem_map(ss->pid, pmap);
         if (!data)
             continue; /* Ignore this error; dump mem maps as many as possible. */
         if (exe_add_seg(ex, &phdr, data) < 0)
