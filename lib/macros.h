@@ -17,4 +17,6 @@
 #define MAXPATH 512
 #endif /* MAXPATH */
 
+#define ARRAY_LEN(x)   (sizeof(x) / sizeof((x)[0]))
+
 #endif // _MACROS_H

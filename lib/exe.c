@@ -8,15 +8,15 @@
 
 #include "snap2exe/snap2exe.h"
 #include "elfcommon.h"
-
-#define PAGE_ROUNDUP(off) (((off) + PAGE_SIZE - 1) & PAGE_MASK);
+#include "macros.h"
+#include "codegen.h"
 
 static int exe_init(struct exe *ex);
 static int exe_dup_segs(struct exe *ex, struct snapshot *ss);
 static int exe_add_seg(struct exe *ex, Elf64_Phdr *phdr, char *data);
 static void exe_free_segs(struct exe *ex);
 static uintptr_t exe_add_restore_seg(struct exe *ex, struct snapshot *ss);
-static char *generate_restore_code(struct snapshot *ss, size_t *size);
+static char *generate_restore_code(struct snapshot *ss, uintptr_t base, size_t *size);
 static uintptr_t find_available_vaddr(struct exe *ex);
 static void update_metadata_phdr(struct exe *ex);
 
@@ -135,7 +135,8 @@ static int exe_add_seg(struct exe *ex, Elf64_Phdr *phdr, char *data)
 static uintptr_t exe_add_restore_seg(struct exe *ex, struct snapshot *ss)
 {
     size_t size;
-    char *restore_code = generate_restore_code(ss, &size);
+    uintptr_t base = find_available_vaddr(ex);
+    char *restore_code = generate_restore_code(ss, base, &size);
     if (!restore_code)
         return 0;
 
@@ -143,7 +144,7 @@ static uintptr_t exe_add_restore_seg(struct exe *ex, struct snapshot *ss)
     memset(&phdr, 0, sizeof(phdr));
     phdr.p_type = PT_LOAD;
     phdr.p_flags = PF_R | PF_X;
-    phdr.p_vaddr = find_available_vaddr(ex);
+    phdr.p_vaddr = base;
     phdr.p_filesz = size;
     phdr.p_memsz = phdr.p_filesz;
     phdr.p_align = PAGE_SIZE;
@@ -156,113 +157,91 @@ static uintptr_t exe_add_restore_seg(struct exe *ex, struct snapshot *ss)
     return phdr.p_vaddr;
 }
 
-#define ADD_BYTES(buf, var, size) \
-    do { \
-        uint##size##_t tmp_var = (var); \
-        memcpy((buf), &tmp_var, sizeof(tmp_var)); \
-        (buf) += sizeof(tmp_var); \
-    } while (0)
-
-#define ADD_B(buf, var) ADD_BYTES(buf, var, 8)
-#define ADD_W(buf, var) ADD_BYTES(buf, var, 16)
-#define ADD_L(buf, var) ADD_BYTES(buf, var, 32)
-#define ADD_Q(buf, var) ADD_BYTES(buf, var, 64)
-
-#define ADD_MOV_I2AX(buf, imm) \
-    do { ADD_W(buf, 0xb866); ADD_W(buf, imm); } while (0)
-
-#define ADD_MOV_AX2ES(buf) ADD_W(buf, 0xc08e)
-#define ADD_MOV_AX2CS(buf) ADD_W(buf, 0xc88e)
-#define ADD_MOV_AX2SS(buf) ADD_W(buf, 0xd08e)
-#define ADD_MOV_AX2DS(buf) ADD_W(buf, 0xd88e)
-#define ADD_MOV_AX2FS(buf) ADD_W(buf, 0xe08e)
-#define ADD_MOV_AX2GS(buf) ADD_W(buf, 0xe88e)
-
-#define ADD_OPW_IQ(buf, op, imm) \
-    do { ADD_W(buf, op); ADD_Q(buf, imm); } while (0)
-
-#define ADD_MOV_I2RAX(buf, imm) ADD_OPW_IQ(buf, 0xb848, imm)
-#define ADD_MOV_I2RCX(buf, imm) ADD_OPW_IQ(buf, 0xb948, imm)
-#define ADD_MOV_I2RDX(buf, imm) ADD_OPW_IQ(buf, 0xba48, imm)
-#define ADD_MOV_I2RBX(buf, imm) ADD_OPW_IQ(buf, 0xbb48, imm)
-#define ADD_MOV_I2RSP(buf, imm) ADD_OPW_IQ(buf, 0xbc48, imm)
-#define ADD_MOV_I2RBP(buf, imm) ADD_OPW_IQ(buf, 0xbd48, imm)
-#define ADD_MOV_I2RSI(buf, imm) ADD_OPW_IQ(buf, 0xbe48, imm)
-#define ADD_MOV_I2RDI(buf, imm) ADD_OPW_IQ(buf, 0xbf48, imm)
-#define ADD_MOV_I2R8(buf, imm)  ADD_OPW_IQ(buf, 0xb849, imm)
-#define ADD_MOV_I2R9(buf, imm)  ADD_OPW_IQ(buf, 0xb949, imm)
-#define ADD_MOV_I2R10(buf, imm) ADD_OPW_IQ(buf, 0xba49, imm)
-#define ADD_MOV_I2R11(buf, imm) ADD_OPW_IQ(buf, 0xbb49, imm)
-#define ADD_MOV_I2R12(buf, imm) ADD_OPW_IQ(buf, 0xbc49, imm)
-#define ADD_MOV_I2R13(buf, imm) ADD_OPW_IQ(buf, 0xbd49, imm)
-#define ADD_MOV_I2R14(buf, imm) ADD_OPW_IQ(buf, 0xbe49, imm)
-#define ADD_MOV_I2R15(buf, imm) ADD_OPW_IQ(buf, 0xbf49, imm)
-
-#define ADD_PUSH_RAX(buf)  ADD_B(buf, 0x50)
-#define ADD_POPF(buf)      ADD_B(buf, 0x9d)
-#define ADD_RET(buf)       ADD_B(buf, 0xc3)
-#define ADD_SYSCALL(buf)   ADD_W(buf, 0x050f);
-
 /* There are several ways to do this, one being the automatic generation
    of assembly file to do that and then compiling it. However, this would
    require an assembler present. Instead, a simpler approach can be used,
    simply write the exact machine code... */
-static char *generate_restore_code(struct snapshot *ss, size_t *size)
+static char *generate_restore_code(struct snapshot *ss, uintptr_t base, size_t *size)
 {
-    char *buf = malloc(PAGE_SIZE);
+    char *buf = malloc(2*PAGE_SIZE); /* Should be more than enough. */
     if (!buf)
         return NULL;
     if (size)
-        *size = PAGE_SIZE;
+        *size = 2*PAGE_SIZE;
 
-    char *start = buf;
+    char *cbuf = buf;
+    char *dbuf = buf + PAGE_SIZE;
+    // uintptr_t data_base = base + PAGE_SIZE;
     struct user_regs_struct *r = &ss->regs;
 
-    // ADD_MOV_I2AX(buf, r->es);
-    // ADD_MOV_AX2ES(buf);
-    // ADD_MOV_I2AX(buf, r->ss);
-    // ADD_MOV_AX2SS(buf);
-    // ADD_MOV_I2AX(buf, r->ds);
-    // ADD_MOV_AX2DS(buf);
-    // ADD_MOV_I2AX(buf, r->fs);
-    // ADD_MOV_AX2FS(buf);
-    // ADD_MOV_I2AX(buf, r->gs);
-    // ADD_MOV_AX2GS(buf);
-
     /* Restore fs.base for TLS usage. */
-    ADD_MOV_I2RAX(buf, SYS_arch_prctl);
-    ADD_MOV_I2RDI(buf, ARCH_SET_FS);
-    ADD_MOV_I2RSI(buf, r->fs_base);
-    ADD_SYSCALL(buf);
+    INS_SYSCALL2(cbuf, SYS_arch_prctl, ARCH_SET_FS, r->fs_base);
 
-    ADD_MOV_I2RBX(buf, r->rbx);
-    ADD_MOV_I2RCX(buf, r->rcx);
-    ADD_MOV_I2RDX(buf, r->rdx);
-    ADD_MOV_I2RSP(buf, r->rsp);
-    ADD_MOV_I2RBP(buf, r->rbp);
-    ADD_MOV_I2RSI(buf, r->rsi);
-    ADD_MOV_I2RDI(buf, r->rdi);
-    ADD_MOV_I2R8(buf, r->r8);
-    ADD_MOV_I2R9(buf, r->r9);
-    ADD_MOV_I2R10(buf, r->r10);
-    ADD_MOV_I2R11(buf, r->r11);
-    ADD_MOV_I2R12(buf, r->r12);
-    ADD_MOV_I2R13(buf, r->r13);
-    ADD_MOV_I2R14(buf, r->r14);
-    ADD_MOV_I2R15(buf, r->r15);
+    /* Reopen files. */
+    struct fdinfo *pfdinfo = ss->fdinfo;
+    char path[MAXPATH];
+    for (int i = 0; i < ss->n_fds; i++, pfdinfo++) {
+        int fd = pfdinfo->fd;
+        if (!S_ISREG(pfdinfo->statbuf.st_mode))
+            continue;
+        snprintf(path, ARRAY_LEN(path), "%d", fd);
+        INS_SYSCALL3(cbuf, SYS_open, base + (dbuf - buf), O_RDWR, 0);
+        INS_STR(dbuf, path);
 
-    ADD_MOV_I2RAX(buf, r->eflags);
-    ADD_PUSH_RAX(buf);
-    ADD_POPF(buf);
+        INS_CMPL_EAX(cbuf, 0x0);
+        INS_JL(cbuf, 0x56);
+        INS_CMPL_EAX(cbuf, fd);
+        INS_JE(cbuf, 0x2c);
 
-    ADD_MOV_I2RAX(buf, r->rip);
-    ADD_PUSH_RAX(buf);
+        INS_PUSH_RAX(cbuf);
+        INS_PUSH_RAX(cbuf);
+        INS_B(cbuf, 0x48); INS_W(cbuf, 0xc789);
+        INS_MOV_I2RSI(cbuf, fd);
+        INS_SYSCALL0(cbuf, SYS_dup2);
+        INS_POP_RAX(cbuf);
+        INS_B(cbuf, 0x56); INS_W(cbuf, 0xc789);
+        INS_SYSCALL0(cbuf, SYS_close);
+        INS_POP_RAX(cbuf);
 
-    ADD_MOV_I2RAX(buf, r->rax);
+        INS_B(cbuf, 0x48); INS_W(cbuf, 0xc789);
+        INS_MOV_I2RSI(cbuf, pfdinfo->offset);
+        INS_MOV_I2RDX(cbuf, SEEK_SET);
+        INS_SYSCALL0(cbuf, SYS_lseek);
+    }
 
-    ADD_RET(buf);
+    /* Recover registers (except rax and rip).
+       Note that rsp is going to point to the original stack */
+    INS_MOV_I2RBX(cbuf, r->rbx);
+    INS_MOV_I2RCX(cbuf, r->rcx);
+    INS_MOV_I2RDX(cbuf, r->rdx);
+    INS_MOV_I2RSP(cbuf, r->rsp);
+    INS_MOV_I2RBP(cbuf, r->rbp);
+    INS_MOV_I2RSI(cbuf, r->rsi);
+    INS_MOV_I2RDI(cbuf, r->rdi);
+    INS_MOV_I2R8(cbuf, r->r8);
+    INS_MOV_I2R9(cbuf, r->r9);
+    INS_MOV_I2R10(cbuf, r->r10);
+    INS_MOV_I2R11(cbuf, r->r11);
+    INS_MOV_I2R12(cbuf, r->r12);
+    INS_MOV_I2R13(cbuf, r->r13);
+    INS_MOV_I2R14(cbuf, r->r14);
+    INS_MOV_I2R15(cbuf, r->r15);
 
-    return start;
+    /* Recover eflags */
+    INS_MOV_I2RAX(cbuf, r->eflags);
+    INS_PUSH_RAX(cbuf);
+    INS_POPF(cbuf);
+
+    /* Push rip for return. */
+    INS_MOV_I2RAX(cbuf, r->rip);
+    INS_PUSH_RAX(cbuf);
+
+    /* Recover rax */
+    INS_MOV_I2RAX(cbuf, r->rax);
+
+    INS_RET(cbuf);
+
+    return buf;
 }
 
 static uintptr_t find_available_vaddr(struct exe *ex)
@@ -283,6 +262,8 @@ static void exe_free_segs(struct exe *ex)
     memset(ex->segs, 0, sizeof(ex->segs[0])*ex->n_segs);
     ex->n_segs = 0;
 }
+
+#define PAGE_ROUNDUP(off) (((off) + PAGE_SIZE - 1) & PAGE_MASK);
 
 int exe_save(int fd, struct exe *ex)
 {

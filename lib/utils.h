@@ -8,8 +8,6 @@
 #include <sys/ptrace.h>
 #include <sys/syscall.h>
 
-#define ARRAY_LEN(x)   (sizeof(x) / sizeof((x)[0]))
-
 /* ptrace */
 #define ptrace_traceme()                 ptrace(PTRACE_TRACEME, 0, NULL, NULL)
 #define ptrace_attach(pid)               ptrace(PTRACE_ATTACH, pid, NULL, NULL)

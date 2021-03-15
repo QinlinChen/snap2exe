@@ -8,5 +8,6 @@ test-tool
 test-ckpt
 test-calc
 test.s
+snapshots-test-*
 xxx
 cont

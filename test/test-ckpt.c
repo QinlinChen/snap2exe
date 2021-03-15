@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <assert.h>
 
 #include "snap2exe/checkpoint.h"
 
@@ -25,10 +28,25 @@ int main()
     printf("stack_var..[%p]=0x%08x\n", &stack_var, stack_var);
     printf("heap_var...[%p]=0x%08x\n", heap_var, *heap_var);
 
-    int ret = checkpoint(1, "test-ckpt-snapshots");
+    int fd = open("Makefile", O_RDONLY);
+    assert(fd >= 0);
+    
+    char buf[512];
+    read(fd, buf, 10);
+    buf[9] = '\0';
+    printf("%s\n", buf);
+
+    int ret = checkpoint(1, "snapshots-test-ckpt");
     printf("checkpoint ret: %d\n", ret);
     if (ret) {
         printf("continued from snapshot!\n");
+    }
+
+    if (read(fd, buf, 10) < 0) {
+        perror("read error");
+    } else {
+        buf[9] = '\0';
+        printf("%s\n", buf);
     }
 
     data_var = 0xaf7e3; //after
