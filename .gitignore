@@ -6,6 +6,7 @@ core.[1-9]*
 
 test-tool
 test-ckpt
+test-calc
 test.s
 xxx
 cont
