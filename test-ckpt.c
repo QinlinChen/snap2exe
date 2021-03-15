@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "snap2exe/snap2exe.h"
+#include "snap2exe/checkpoint.h"
 
 static int bss_var;
 static int data_var = 0xbef03e; //before
@@ -25,12 +25,11 @@ int main()
     printf("stack_var..[%p]=0x%08x\n", &stack_var, stack_var);
     printf("heap_var...[%p]=0x%08x\n", heap_var, *heap_var);
 
-    // int ret = checkpoint(1);
-    // printf("checkpoint ret: %d\n", ret);
-    // if (ret) {
-    //     printf("continued from snapshot!\n");
-    // }
-    getchar();
+    int ret = checkpoint(1);
+    printf("checkpoint ret: %d\n", ret);
+    if (ret) {
+        printf("continued from snapshot!\n");
+    }
 
     data_var = 0xaf7e3; //after
     printf("bss_var....[%p]=0x%08x\n", &bss_var, bss_var);

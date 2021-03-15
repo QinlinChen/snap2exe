@@ -30,6 +30,7 @@ $(obj_dir)/%.o: %.c
 
 clean:
 	-rm -rf $(build_dir)
+	-rm -rf test-ckpt test-tool cont
 
 install: $(snap2exe_bin)
 	@mkdir -p $(install_prefix)
@@ -39,8 +40,13 @@ install: $(snap2exe_bin)
 		cp -r $$include_dir $(install_prefix); \
 	done
 
-test: test.c
-	$(CC) -o $@ $^ -no-pie -static -g
+TEST_CFLAGS := -static -no-pie -Wall -I ./include
 
-example: example.c lib/*.c include/snap2exe/*.h
-	$(CC) -o $@ -Wall -I ./include example.c lib/*.c
+test-tool: $(snap2exe_bin) test-tool.c
+	$(CC) $(TEST_CFLAGS) -o $@ test-tool.c
+
+test-ckpt: test-ckpt.c lib/*.c include/snap2exe/*.h
+	$(CC) $(TEST_CFLAGS) -o $@ test-ckpt.c lib/*.c
+
+test: test-tool test-ckpt
+

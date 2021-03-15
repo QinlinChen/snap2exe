@@ -159,8 +159,10 @@ void snapshot_show(struct snapshot *ss)
            r->r8, r->r9, r->r10, r->r11);
     printf("r12: 0x%llx, r13: 0x%llx, r14: 0x%llx, r15: 0x%llx\n",
            r->r12, r->r13, r->r14, r->r15);
-    printf("rip: 0x%llx, eflags: 0x%llx\n", r->rip, r->eflags);
-    printf("fs.base: 0x%llx, gs.base: 0x%llx\n", r->fs_base, r->gs_base);
+    printf("orig_rax: 0x%llx, rip: 0x%llx, eflags: 0x%llx\n",
+           r->orig_rax, r->rip, r->eflags);
+    printf("fs.base: 0x%llx, gs.base: 0x%llx\n",
+           r->fs_base, r->gs_base);
     printf("cs: 0x%llx, ss: 0x%llx, ds: 0x%llx, es: 0x%llx, fs: 0x%llx, gs: 0x%llx\n",
            r->cs, r->ss, r->ds, r->es, r->fs, r->gs);
 

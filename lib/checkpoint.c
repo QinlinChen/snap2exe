@@ -1,8 +1,9 @@
 #include "sys.h"
-#include "snap2exe/snap2exe.h"
+#include "snap2exe/checkpoint.h"
 
 #include <sys/wait.h>
 
+#include "snap2exe/snap2exe.h"
 #include "utils.h"
 
 static void exit_without_side_effects(int status);
@@ -32,7 +33,7 @@ int checkpoint(int cond)
         }
         sync_as_tracer(pid);
 
-        if (snap2exe(pid, "example-cont") < 0) {
+        if (snap2exe(pid, "cont") < 0) {
             perror("snap2exe error");
             exit_without_side_effects(EXIT_SUCCESS);
         }
@@ -67,7 +68,7 @@ static void sync_as_tracee()
         perror("ptrace_traceme error");
         exit_without_side_effects(EXIT_FAILURE);
     }
-    raise(SIGTRAP);
+    raise(SIGSTOP);
 }
 
 static void sync_as_tracer(pid_t pid)
