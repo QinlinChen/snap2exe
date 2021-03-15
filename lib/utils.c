@@ -4,6 +4,8 @@
 #include <dirent.h>
 #include <sys/wait.h>
 
+#include "macros.h"
+
 /* ------------------------------------------------
  *                    ptrace
  * ------------------------------------------------ */
@@ -97,6 +99,129 @@ int ptrace_write(pid_t pid, void *addr, void *buf, size_t size)
 }
 
 /* ------------------------------------------------
+ *                     procfs
+ * ------------------------------------------------ */
+
+int proc_traverse_fds(pid_t pid, void *data, int (*handle)(pid_t, int, void *))
+{
+    char dirname[MAXPATH];
+    DIR *dir;
+    struct dirent *ent;
+
+    snprintf(dirname, ARRAY_LEN(dirname), "/proc/%d/fd", (int)pid);
+    if ((dir = opendir(dirname)) == NULL)
+        return -1;
+
+    int ret = 0;
+    while ((ent = readdir(dir)) != NULL) {
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+            continue;
+        ret = handle(pid, atoi(ent->d_name), data);
+        if (ret < 0)
+            break;
+    }
+
+    if (closedir(dir) == -1)
+        return -1;
+
+    return ret;
+}
+
+int proc_fstat(pid_t pid, int fd, struct stat *buf)
+{
+    char file[MAXPATH];
+    snprintf(file, ARRAY_LEN(file), "/proc/%d/fd/%d", (int)pid, fd);
+    return stat(file, buf);
+}
+
+int proc_fd_name(pid_t pid, int fd, char *buf, size_t size)
+{
+    char link[MAXPATH];
+    size_t len;
+
+    snprintf(link, ARRAY_LEN(link), "/proc/%d/fd/%d", (int)pid, fd);
+    if ((len = readlink(link, buf, size)) == -1) {
+        buf[0] = '\0';
+        return -1;
+    }
+
+    if (len >= size) {
+        errno = EINVAL;
+        buf[0] = '\0';
+        return -1;
+    }
+
+    buf[len] = '\0';
+    return len;
+}
+
+off_t proc_fd_offset(pid_t pid, int fd)
+{
+    char link[MAXPATH];
+    snprintf(link, ARRAY_LEN(link), "/proc/%d/fdinfo/%d", (int)pid, fd);
+    
+    FILE *fdinfo_fp = NULL;
+    if ((fdinfo_fp = fopen(link, "r")) == NULL)
+        return (off_t)-1;
+
+    char line[MAXLINE];
+    if (readline(fdinfo_fp, line, ARRAY_LEN(line)) == (char *)-1)
+        goto errout;
+
+    off_t off;
+    if (sscanf(line, "pos: %ld", &off) != 1)
+        goto errout;
+
+    return off;
+
+errout:
+    if (fdinfo_fp)
+        fclose(fdinfo_fp);
+    return (off_t)-1;
+}
+
+int proc_mem_read(pid_t pid, void *addr, char *buf, size_t size)
+{
+    char file[MAXPATH];
+    int fd, nread;
+
+    snprintf(file, ARRAY_LEN(file), "/proc/%d/mem", (int)pid);
+    if ((fd = open(file, O_RDONLY)) < 0)
+        return -1;
+
+    if (lseek(fd, (off_t)addr, SEEK_SET) == (off_t)-1)
+        goto close_and_err_out;
+ 
+    if ((nread = read(fd, buf, size)) < 0)
+        goto close_and_err_out;
+
+    close(fd);
+    return nread;
+
+close_and_err_out:
+    close(fd);
+    return -1;
+}
+
+int proc_str_read(pid_t pid, void *addr, char *buf, size_t size)
+{
+    int nread;
+
+    if (size <= 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if ((nread = proc_mem_read(pid, addr, buf, size)) < 0)
+        return -1;
+
+    if (nread == (int)size)
+        nread--;
+    buf[nread] = '\0';
+    return nread;
+}
+
+/* ------------------------------------------------
  *                      io
  * ------------------------------------------------ */
 
@@ -168,99 +293,23 @@ void close_all_fds(int (*whitelist)(int))
         force_close_all_fds(whitelist);
 }
 
-/* ------------------------------------------------
- *                     procfs
- * ------------------------------------------------ */
-
-int proc_fstat(pid_t pid, int fd, struct stat *buf)
+const char *file_type_str(mode_t mode)
 {
-    char file[MAXNAME];
-    snprintf(file, ARRAY_LEN(file), "/proc/%d/fd/%d", (int)pid, fd);
-    return stat(file, buf);
-}
-
-int proc_fd_name(pid_t pid, int fd, char *buf, size_t size)
-{
-    char link[MAXNAME];
-    size_t len;
-
-    snprintf(link, ARRAY_LEN(link), "/proc/%d/fd/%d", (int)pid, fd);
-    if ((len = readlink(link, buf, size)) == -1) {
-        buf[0] = '\0';
-        return -1;
-    }
-
-    if (len >= size) {
-        errno = EINVAL;
-        buf[0] = '\0';
-        return -1;
-    }
-
-    buf[len] = '\0';
-    return len;
-}
-
-int proc_traverse_fds(pid_t pid, void (*handle)(pid_t, int))
-{
-    char dirname[MAXNAME];
-    DIR *dir;
-    struct dirent *ent;
-
-    snprintf(dirname, ARRAY_LEN(dirname), "/proc/%d/fd", (int)pid);
-    if ((dir = opendir(dirname)) == NULL)
-        return -1;
-
-    while ((ent = readdir(dir)) != NULL) {
-        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
-            continue;
-        handle(pid, atoi(ent->d_name));
-    }
-
-    if (closedir(dir) == -1)
-        return -1;
-
-    return 0;
-}
-
-int proc_mem_read(pid_t pid, void *addr, char *buf, size_t size)
-{
-    char file[MAXNAME];
-    int fd, nread;
-
-    snprintf(file, ARRAY_LEN(file), "/proc/%d/mem", (int)pid);
-    if ((fd = open(file, O_RDONLY)) < 0)
-        return -1;
-
-    if (lseek(fd, (off_t)addr, SEEK_SET) == (off_t)-1)
-        goto close_and_err_out;
-
-    if ((nread = read(fd, buf, size)) < 0)
-        goto close_and_err_out;
-
-    close(fd);
-    return nread;
-
-close_and_err_out:
-    close(fd);
-    return -1;
-}
-
-int proc_str_read(pid_t pid, void *addr, char *buf, size_t size)
-{
-    int nread;
-
-    if (size <= 0) {
-        errno = EINVAL;
-        return -1;
-    }
-
-    if ((nread = proc_mem_read(pid, addr, buf, size)) < 0)
-        return -1;
-
-    if (nread == (int)size)
-        nread--;
-    buf[nread] = '\0';
-    return nread;
+    if (S_ISREG(mode))
+        return "regular file";
+    if (S_ISDIR(mode))
+        return "directory";
+    if (S_ISCHR(mode))
+        return "character device";
+    if (S_ISBLK(mode))
+        return "block device";
+    if (S_ISFIFO(mode))
+        return "FIFO";
+    if (S_ISLNK(mode))
+        return "symbolic link";
+    if (S_ISSOCK(mode))
+        return "socket";
+    return "unknown";
 }
 
 /* ------------------------------------------------

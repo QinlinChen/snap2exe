@@ -3,6 +3,8 @@
 
 #include <stdarg.h>
 
+#include "macros.h"
+
 static char errmsg_buf[MAXBUF]; /* TODO: make it thread local. */
 
 char *s2e_errmsg(char *buf, size_t len)

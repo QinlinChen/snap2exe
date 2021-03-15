@@ -23,6 +23,7 @@ int main()
     printf("stack_var..[%p]=0x%08x\n", &stack_var, stack_var);
     printf("heap_var...[%p]=0x%08x\n", heap_var, *heap_var);
 
+    fopen("Makefile", "r");
     getchar();
 
     data_var = 0xaf7e3; //after

@@ -16,20 +16,4 @@
 #include <errno.h>
 #include <assert.h>
 
-#ifndef OPEN_MAX
-#define OPEN_MAX 1024
-#endif /* OPEN_MAX */
-
-#ifndef MAXLINE
-#define MAXLINE 1024
-#endif /* MAXLINE */
-
-#ifndef MAXBUF
-#define MAXBUF 1024
-#endif /* MAXBUF */
-
-#ifndef MAXNAME
-#define MAXNAME 1024
-#endif /* MAXNAME */
-
 #endif /* _SYS_H */

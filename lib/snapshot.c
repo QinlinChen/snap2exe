@@ -14,10 +14,15 @@ static char *substr(char *str, regmatch_t *match);
 static long hexstr_to_long(const char *str);
 static int str_to_prot(const char *perms);
 
+static int build_fdinfo(struct snapshot *ss);
+static int get_fdinfo(pid_t pid, int fd, void *data);
+static int add_fdinfo(struct snapshot *ss, struct fdinfo *fdinfo);
+
 int snapshot_build(struct snapshot *ss, pid_t pid)
 {
     ss->pid = pid;
     ss->n_maps = 0;
+    ss->n_fds = 0;
 
     if (ptrace_getregs(pid, &ss->regs) != 0) {
         s2e_unix_err("ptrace getregs error");
@@ -27,7 +32,8 @@ int snapshot_build(struct snapshot *ss, pid_t pid)
     if (build_mem_maps(ss) < 0)
         return -1;
 
-    // TODO: build fs info.
+    if (build_fdinfo(ss) < 0)
+        return -1;
 
     return 0;
 }
@@ -47,18 +53,20 @@ static int build_mem_maps(struct snapshot *ss) {
     }
 
     FILE *fp;
-    char filepath[MAXLINE];
+    char filepath[MAXPATH];
     sprintf(filepath, "/proc/%d/maps", ss->pid);
     if ((fp = fopen(filepath, "r")) == NULL) {
         s2e_unix_err("fail to open file: %s", filepath);
         goto errout;
     }
 
-    int ret;
+    char *rd_ret;
     char line[MAXLINE];
     struct mem_map map;
-    while (readline(fp, line, MAXLINE) != NULL) {
-        ret = extract_mem_map(line, &reg, &map);
+    while ((rd_ret = readline(fp, line, MAXLINE)) != NULL) {
+        if (rd_ret == (char *)-1)
+            goto errout;
+        int ret = extract_mem_map(line, &reg, &map);
         if (ret == -1)
             goto errout;
         if (ret == 0)
@@ -112,8 +120,7 @@ static int add_mem_map(struct snapshot *ss, struct mem_map *map)
         return -1;
     }
 
-    struct mem_map *new_map = &ss->maps[ss->n_maps];
-    ss->n_maps++;
+    struct mem_map *new_map = &ss->maps[ss->n_maps++];
     memcpy(new_map, map, sizeof(*map));
     return 0;
 }
@@ -147,6 +154,43 @@ static int str_to_prot(const char *perms)
     return prot;
 }
 
+static int build_fdinfo(struct snapshot *ss)
+{
+    int ret;
+    if ((ret = proc_traverse_fds(ss->pid, (void *)ss, get_fdinfo)) < 0) {
+        if (ret == -1)
+            s2e_unix_err("proc_traverse_fds error");
+        /* Otherwise, the error massage has been set by the handler. */
+        return -1;
+    }
+    return 0;
+}
+
+static int get_fdinfo(pid_t pid, int fd, void *data)
+{
+    struct fdinfo fdinfo;
+    fdinfo.fd = fd;
+    if (proc_fstat(pid, fd, &fdinfo.statbuf) < 0)
+        return 0; /* Continue to try next. */
+    if ((fdinfo.offset = proc_fd_offset(pid, fd)) == (off_t)-1)
+        return 0; /* Continue to try next. */
+    if (add_fdinfo((struct snapshot *)data, &fdinfo) < 0)
+        return -2; /* Break. */
+    return 0;
+}
+
+static int add_fdinfo(struct snapshot *ss, struct fdinfo *fdinfo)
+{
+    if (ss->n_fds >= MAX_FDINFO) {
+        s2e_lib_err("exccess MAX_FDINFO");
+        return -1;
+    }
+
+    struct fdinfo *new_fdinfo = &ss->fdinfo[ss->n_fds++];
+    memcpy(new_fdinfo, fdinfo, sizeof(*fdinfo));
+    return 0;
+}
+
 void snapshot_show(struct snapshot *ss)
 {
     printf("Program Status\n");
@@ -173,6 +217,14 @@ void snapshot_show(struct snapshot *ss)
                pmap->prot & PROT_READ ? 'r' : '-',
                pmap->prot & PROT_WRITE ? 'w' : '-',
                pmap->prot & PROT_EXEC ? 'x' : '-');
+    }
+    
+    printf("\nFile Desciptors\n");
+    struct fdinfo *pfdinfo = ss->fdinfo;
+    for (int i = 0; i < ss->n_fds; i++, pfdinfo++) {
+        printf("fd: %d, off: %ld, type: %s\n",
+               pfdinfo->fd, (long)pfdinfo->offset,
+               file_type_str(pfdinfo->statbuf.st_mode));
     }
 }
 
