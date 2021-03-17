@@ -217,8 +217,8 @@ errout:
 
 static int add_fdstat(struct snapshot *ss, struct fdstat *fdstat)
 {
-    if (ss->n_fds >= MAX_FDINFO) {
-        s2e_lib_err("exccess MAX_FDINFO");
+    if (ss->n_fds >= MAX_FDSTAT) {
+        s2e_lib_err("exccess MAX_FDSTAT");
         return -1;
     }
 
