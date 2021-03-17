@@ -27,7 +27,6 @@ int snap2exe(int pid, const char *save_dir)
     struct snapshot ss;
     if (snapshot_build(&ss, pid) < 0)
         return -1;
-    // snapshot_show(&ss);
 
     if (snapshot_dump_opened_files(&ss, snapshot_dir) < 0)
         return -1;

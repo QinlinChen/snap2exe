@@ -178,14 +178,14 @@ static char *generate_restore_code(struct snapshot *ss, uintptr_t base, size_t *
     INS_SYSCALL2(cbuf, SYS_arch_prctl, ARCH_SET_FS, r->fs_base);
 
     /* Reopen files. */
-    struct fdinfo *pfdinfo = ss->fdinfo;
+    struct fdstat *pfdstat = ss->fdstat;
     char path[MAXPATH];
-    for (int i = 0; i < ss->n_fds; i++, pfdinfo++) {
-        int fd = pfdinfo->fd;
-        if (!S_ISREG(pfdinfo->statbuf.st_mode))
+    for (int i = 0; i < ss->n_fds; i++, pfdstat++) {
+        int fd = pfdstat->fd;
+        if (!S_ISREG(pfdstat->filestat.st_mode))
             continue;
         snprintf(path, ARRAY_LEN(path), "%d", fd);
-        INS_SYSCALL3(cbuf, SYS_open, base + (dbuf - buf), O_RDWR, 0);
+        INS_SYSCALL3(cbuf, SYS_open, base + (dbuf - buf), pfdstat->oflag, 0);
         INS_STR(dbuf, path);
 
         INS_CMPL_EAX(cbuf, 0x0);
@@ -204,7 +204,7 @@ static char *generate_restore_code(struct snapshot *ss, uintptr_t base, size_t *
         INS_POP_RAX(cbuf);
 
         INS_B(cbuf, 0x48); INS_W(cbuf, 0xc789);
-        INS_MOV_I2RSI(cbuf, pfdinfo->offset);
+        INS_MOV_I2RSI(cbuf, pfdstat->offset);
         INS_MOV_I2RDX(cbuf, SEEK_SET);
         INS_SYSCALL0(cbuf, SYS_lseek);
     }

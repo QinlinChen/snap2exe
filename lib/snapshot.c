@@ -14,9 +14,10 @@ static char *substr(char *str, regmatch_t *match);
 static long hexstr_to_long(const char *str);
 static int str_to_prot(const char *perms);
 
-static int build_fdinfo(struct snapshot *ss);
-static int get_fdinfo(pid_t pid, int fd, void *data);
-static int add_fdinfo(struct snapshot *ss, struct fdinfo *fdinfo);
+static int build_fdstat(struct snapshot *ss);
+static int get_fdstat(pid_t pid, int fd, void *data);
+static int get_fdinfo(pid_t pid, int fd, struct fdstat *fdstat);
+static int add_fdstat(struct snapshot *ss, struct fdstat *fdstat);
 
 int snapshot_build(struct snapshot *ss, pid_t pid)
 {
@@ -32,7 +33,7 @@ int snapshot_build(struct snapshot *ss, pid_t pid)
     if (build_mem_maps(ss) < 0)
         return -1;
 
-    if (build_fdinfo(ss) < 0)
+    if (build_fdstat(ss) < 0)
         return -1;
 
     return 0;
@@ -154,10 +155,10 @@ static int str_to_prot(const char *perms)
     return prot;
 }
 
-static int build_fdinfo(struct snapshot *ss)
+static int build_fdstat(struct snapshot *ss)
 {
     int ret;
-    if ((ret = proc_traverse_fds(ss->pid, (void *)ss, get_fdinfo)) < 0) {
+    if ((ret = proc_traverse_fds(ss->pid, (void *)ss, get_fdstat)) < 0) {
         if (ret == -1)
             s2e_unix_err("proc_traverse_fds error");
         /* Otherwise, the error massage has been set by the handler. */
@@ -166,28 +167,63 @@ static int build_fdinfo(struct snapshot *ss)
     return 0;
 }
 
-static int get_fdinfo(pid_t pid, int fd, void *data)
+static int get_fdstat(pid_t pid, int fd, void *data)
 {
-    struct fdinfo fdinfo;
-    fdinfo.fd = fd;
-    if (proc_fstat(pid, fd, &fdinfo.statbuf) < 0)
+    struct fdstat fdstat;
+    fdstat.fd = fd;
+    if (proc_fstat(pid, fd, &fdstat.filestat) < 0)
         return 0; /* Continue to try next. */
-    if ((fdinfo.offset = proc_fd_offset(pid, fd)) == (off_t)-1)
+    if (get_fdinfo(pid, fd, &fdstat) < 0)
         return 0; /* Continue to try next. */
-    if (add_fdinfo((struct snapshot *)data, &fdinfo) < 0)
+    if (add_fdstat((struct snapshot *)data, &fdstat) < 0)
         return -2; /* Break. */
     return 0;
 }
 
-static int add_fdinfo(struct snapshot *ss, struct fdinfo *fdinfo)
+int get_fdinfo(pid_t pid, int fd, struct fdstat *fdstat)
+{
+    char link[MAXPATH];
+    snprintf(link, ARRAY_LEN(link), "/proc/%d/fdinfo/%d", (int)pid, fd);
+    
+    FILE *fdinfo_fp = NULL;
+    if ((fdinfo_fp = fopen(link, "r")) == NULL) {
+        s2e_lib_err("Fail to open %s", link);
+        return -1;
+    }
+
+    char line[MAXLINE];
+    if (readline(fdinfo_fp, line, ARRAY_LEN(line)) == (char *)-1) {
+        s2e_lib_err("readline error");
+        goto errout;
+    }
+    if (sscanf(line, "pos: %ld", &fdstat->offset) != 1)
+        goto errout;
+
+    if (readline(fdinfo_fp, line, ARRAY_LEN(line)) == (char *)-1) {
+        s2e_lib_err("readline error");
+        goto errout;
+    }
+    if (sscanf(line, "flags: %o", &fdstat->oflag) != 1)
+        goto errout;
+
+    fclose(fdinfo_fp);
+    return 0;
+
+errout:
+    if (fdinfo_fp)
+        fclose(fdinfo_fp);
+    return -1;
+}
+
+static int add_fdstat(struct snapshot *ss, struct fdstat *fdstat)
 {
     if (ss->n_fds >= MAX_FDINFO) {
         s2e_lib_err("exccess MAX_FDINFO");
         return -1;
     }
 
-    struct fdinfo *new_fdinfo = &ss->fdinfo[ss->n_fds++];
-    memcpy(new_fdinfo, fdinfo, sizeof(*fdinfo));
+    struct fdstat *new_fdstat = &ss->fdstat[ss->n_fds++];
+    memcpy(new_fdstat, fdstat, sizeof(*fdstat));
     return 0;
 }
 
@@ -220,11 +256,11 @@ void snapshot_show(struct snapshot *ss)
     }
     
     printf("\nFile Desciptors\n");
-    struct fdinfo *pfdinfo = ss->fdinfo;
-    for (int i = 0; i < ss->n_fds; i++, pfdinfo++) {
-        printf("fd: %d, off: %ld, type: %s\n",
-               pfdinfo->fd, (long)pfdinfo->offset,
-               file_type_str(pfdinfo->statbuf.st_mode));
+    struct fdstat *pfdstat = ss->fdstat;
+    for (int i = 0; i < ss->n_fds; i++, pfdstat++) {
+        printf("fd: %d, off: %ld, oflag: %o, type: %s\n",
+               pfdstat->fd, (long)pfdstat->offset, pfdstat->oflag,
+               file_type_str(pfdstat->filestat.st_mode));
     }
 }
 
@@ -232,12 +268,12 @@ int snapshot_dump_opened_files(struct snapshot *ss, const char *dump_dir)
 {
     char dump_path[MAXPATH];
     char src_path[MAXPATH];
-    struct fdinfo *pfdinfo = ss->fdinfo;
-    for (int i = 0; i < ss->n_fds; i++, pfdinfo++) {
-        if (!S_ISREG(pfdinfo->statbuf.st_mode))
+    struct fdstat *pfdstat = ss->fdstat;
+    for (int i = 0; i < ss->n_fds; i++, pfdstat++) {
+        if (!S_ISREG(pfdstat->filestat.st_mode))
             continue;
-        snprintf(dump_path, ARRAY_LEN(dump_path), "%s/%d", dump_dir, pfdinfo->fd);
-        snprintf(src_path, ARRAY_LEN(src_path), "/proc/%d/fd/%d", ss->pid, pfdinfo->fd);
+        snprintf(dump_path, ARRAY_LEN(dump_path), "%s/%d", dump_dir, pfdstat->fd);
+        snprintf(src_path, ARRAY_LEN(src_path), "/proc/%d/fd/%d", ss->pid, pfdstat->fd);
         if (copy_file(dump_path, src_path) < 0) {
             s2e_unix_err("copy '%s' to '%s' error", src_path, dump_path);
             return -1;

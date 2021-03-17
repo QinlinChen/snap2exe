@@ -27,7 +27,6 @@ int ptrace_write(pid_t pid, void *addr, void *buf, size_t size);
 int proc_traverse_fds(pid_t pid, void *data, int (*handle)(pid_t, int, void *));
 int proc_fstat(pid_t pid, int fd, struct stat *buf);
 int proc_fd_name(pid_t pid, int fd, char *buf, size_t size);
-off_t proc_fd_offset(pid_t pid, int fd);
 int proc_mem_read(pid_t pid, void *addr, char *buf, size_t size);
 int proc_str_read(pid_t pid, void *addr, char *buf, size_t size);
 

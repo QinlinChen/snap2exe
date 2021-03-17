@@ -155,31 +155,6 @@ int proc_fd_name(pid_t pid, int fd, char *buf, size_t size)
     return len;
 }
 
-off_t proc_fd_offset(pid_t pid, int fd)
-{
-    char link[MAXPATH];
-    snprintf(link, ARRAY_LEN(link), "/proc/%d/fdinfo/%d", (int)pid, fd);
-    
-    FILE *fdinfo_fp = NULL;
-    if ((fdinfo_fp = fopen(link, "r")) == NULL)
-        return (off_t)-1;
-
-    char line[MAXLINE];
-    if (readline(fdinfo_fp, line, ARRAY_LEN(line)) == (char *)-1)
-        goto errout;
-
-    off_t off;
-    if (sscanf(line, "pos: %ld", &off) != 1)
-        goto errout;
-
-    return off;
-
-errout:
-    if (fdinfo_fp)
-        fclose(fdinfo_fp);
-    return (off_t)-1;
-}
-
 int proc_mem_read(pid_t pid, void *addr, char *buf, size_t size)
 {
     char file[MAXPATH];

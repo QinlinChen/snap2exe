@@ -13,10 +13,11 @@ struct mem_map {
     int prot;
 };
 
-struct fdinfo {
+struct fdstat {
     int fd;
-    struct stat statbuf;
+    struct stat filestat;
     off_t offset;
+    int oflag;
 };
 
 #define MAX_MEM_MAPS    50
@@ -28,7 +29,7 @@ struct snapshot {
     int n_maps;
     struct mem_map maps[MAX_MEM_MAPS];
     int n_fds;
-    struct fdinfo fdinfo[MAX_FDINFO];
+    struct fdstat fdstat[MAX_FDINFO];
 };
 
 int snapshot_build(struct snapshot *ss, pid_t pid);
