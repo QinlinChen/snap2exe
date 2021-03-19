@@ -32,9 +32,12 @@ int main()
     assert(fd >= 0);
     
     char buf[512];
-    read(fd, buf, 20);
-    buf[19] = '\0';
-    printf("%s\n", buf);
+     if (read(fd, buf, 20) < 0) {
+        perror("read error");
+    } else {
+        buf[19] = '\0';
+        printf("%s\n", buf);
+    }
 
     int ret = checkpoint(1, "snapshots-test-ckpt");
     printf("checkpoint ret: %d\n", ret);

@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <assert.h>
 
 static int bss_var;
 static int data_var = 0xbef03e; //before
@@ -23,8 +26,25 @@ int main()
     printf("stack_var..[%p]=0x%08x\n", &stack_var, stack_var);
     printf("heap_var...[%p]=0x%08x\n", heap_var, *heap_var);
 
-    fopen("Makefile", "r");
+    int fd = open("Makefile", O_RDONLY);
+    assert(fd >= 0);
+    
+    char buf[512];
+    if (read(fd, buf, 20) < 0) {
+        perror("read error");
+    } else {
+        buf[19] = '\0';
+        printf("%s\n", buf);
+    }
+
     getchar();
+
+    if (read(fd, buf, 20) < 0) {
+        perror("read error");
+    } else {
+        buf[19] = '\0';
+        printf("%s\n", buf);
+    }
 
     data_var = 0xaf7e3; //after
     printf("bss_var....[%p]=0x%08x\n", &bss_var, bss_var);
