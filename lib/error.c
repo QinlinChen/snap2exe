@@ -1,9 +1,8 @@
 #include "sys.h"
+#include "config.h"
 #include "snap2exe/snap2exe.h"
 
 #include <stdarg.h>
-
-#include "macros.h"
 
 static char errmsg_buf[MAXBUF]; /* TODO: make it thread local. */
 

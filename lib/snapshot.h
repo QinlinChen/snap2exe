@@ -5,8 +5,6 @@
 #include <sys/stat.h>
 #include <sys/user.h>
 
-#include "macros.h"
-
 struct mem_map {
     void *start;
     void *end;

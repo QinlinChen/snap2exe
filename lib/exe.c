@@ -1,4 +1,5 @@
 #include "sys.h"
+#include "config.h"
 #include "exe.h"
 
 #include <sys/mman.h>
@@ -8,7 +9,7 @@
 
 #include "snap2exe/snap2exe.h"
 #include "elfcommon.h"
-#include "macros.h"
+#include "utils.h"
 #include "codegen.h"
 
 static int exe_init(struct exe *ex);
@@ -246,7 +247,7 @@ static char *generate_restore_code(struct snapshot *ss, uintptr_t base, size_t *
 
 static uintptr_t find_available_vaddr(struct exe *ex)
 {
-    return 0x200000UL; // TODO: fix this hard code.
+    return 0x100000UL; // TODO: fix this hard code.
 }
 
 void exe_free(struct exe *ex)
@@ -327,7 +328,7 @@ int exe_save(int fd, struct exe *ex)
 
 static void update_metadata_phdr(struct exe *ex)
 {
-    uintptr_t vaddr = 0x300000UL; // TODO: Fix this hard code.
+    uintptr_t vaddr = 0x200000UL; // TODO: Fix this hard code.
     size_t metadata_size = ex->ehdr.e_phoff + ex->ehdr.e_phnum * ex->ehdr.e_phentsize;
 
     ex->metadata_phdr.p_vaddr = vaddr;

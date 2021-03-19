@@ -1,4 +1,5 @@
 #include "sys.h"
+#include "config.h"
 #include "snapshot.h"
 
 #include <regex.h>

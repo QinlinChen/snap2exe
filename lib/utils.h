@@ -8,6 +8,8 @@
 #include <sys/ptrace.h>
 #include <sys/syscall.h>
 
+#define ARRAY_LEN(x)   (sizeof(x) / sizeof((x)[0]))
+
 /* ptrace */
 #define ptrace_traceme()                 ptrace(PTRACE_TRACEME, 0, NULL, NULL)
 #define ptrace_attach(pid)               ptrace(PTRACE_ATTACH, pid, NULL, NULL)
@@ -35,6 +37,7 @@ char *readline(FILE *stream, char *buf, size_t size);
 void close_all_fds(int (*whitelist)(int));
 const char *file_type_str(mode_t mode);
 int copy_file(const char *dst, const char *src);
+int lock_reg(int fd, int cmd, int type, off_t offset, int whence, off_t len);
 
 /* misc */
 int detached_fork();

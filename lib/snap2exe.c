@@ -1,11 +1,11 @@
 #include "sys.h"
+#include "config.h"
 #include "snap2exe/snap2exe.h"
 
 #include <time.h>
 
 #include "snapshot.h"
 #include "exe.h"
-#include "macros.h"
 #include "utils.h"
 
 int snap2exe(int pid, const char *save_dir)
