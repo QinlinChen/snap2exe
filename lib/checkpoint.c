@@ -28,22 +28,24 @@ int checkpoint(int cond, const char *save_dir)
        return -1;
 
     if (pid == 0) {
-        if ((pid = fork()) < 0)
-            exit_without_side_effects(EXIT_FAILURE);
+        set_log_identity("tracer");
 
+        if ((pid = fork()) < 0) {
+            log_unix_error("fork error");
+            exit_without_side_effects(EXIT_FAILURE);
+        }
         if (pid == 0) {
             set_log_identity("tracee");
             sync_as_tracee();
             /* Recovered executables will continue from here. */
             return 1;
         }
-        set_log_identity("tracer");
         sync_as_tracer(pid);
 
         if (snap2exe(pid, save_dir) < 0) {
             char buf[MAXLINE];
             log_error("%s", s2e_errmsg(buf, MAXLINE));
-            exit_without_side_effects(EXIT_SUCCESS);
+            exit_without_side_effects(EXIT_FAILURE);
         }
         exit_without_side_effects(EXIT_SUCCESS);
     }

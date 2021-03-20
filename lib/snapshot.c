@@ -2,17 +2,14 @@
 #include "config.h"
 #include "snapshot.h"
 
-#include <regex.h>
 #include <sys/mman.h>
 
 #include "snap2exe/snap2exe.h"
 #include "utils.h"
 
 static int build_mem_maps(struct snapshot *ss);
-static int extract_mem_map(char *line, regex_t *reg, struct mem_map *map);
+static int extract_mem_map(char *line, struct mem_map *map);
 static int add_mem_map(struct snapshot *ss, struct mem_map *map);
-static char *substr(char *str, regmatch_t *match);
-static long hexstr_to_long(const char *str);
 static int str_to_prot(const char *perms);
 
 static int build_fdstat(struct snapshot *ss);
@@ -41,22 +38,11 @@ int snapshot_build(struct snapshot *ss, pid_t pid)
 }
 
 /* Parse memory maps from /proc/[pid]/maps. */
-static int build_mem_maps(struct snapshot *ss) {
-    regex_t reg;
-    int rc = regcomp(&reg,
-                     "([0-9a-fA-F]+)\\-([0-9a-fA-f]+)\\s+([rwxps-]+)\\s+"
-                     "[0-9a-fA-F]+\\s+[0-9a-fA-F]+:[0-9a-fA-F]+\\s+[0-9]+\\s+(.*)",
-                     REG_EXTENDED);
-    if (rc != 0) {
-        char errbuf[MAXBUF];
-        regerror(rc, &reg, errbuf, MAXBUF);
-        s2e_lib_err("regex compilation failed: %s", errbuf);
-        return -1;
-    }
-
+static int build_mem_maps(struct snapshot *ss)
+{
     FILE *fp;
     char filepath[MAXPATH];
-    sprintf(filepath, "/proc/%d/maps", ss->pid);
+    snprintf(filepath, ARRAY_LEN(filepath), "/proc/%d/maps", ss->pid);
     if ((fp = fopen(filepath, "r")) == NULL) {
         s2e_unix_err("fail to open file: %s", filepath);
         goto errout;
@@ -65,10 +51,10 @@ static int build_mem_maps(struct snapshot *ss) {
     char *rd_ret;
     char line[MAXLINE];
     struct mem_map map;
-    while ((rd_ret = readline(fp, line, MAXLINE)) != NULL) {
+    while ((rd_ret = readline(fp, line, ARRAY_LEN(line))) != NULL) {
         if (rd_ret == (char *)-1)
             goto errout;
-        int ret = extract_mem_map(line, &reg, &map);
+        int ret = extract_mem_map(line, &map);
         if (ret == -1)
             goto errout;
         if (ret == 0)
@@ -78,39 +64,32 @@ static int build_mem_maps(struct snapshot *ss) {
     }
 
     fclose(fp);
-    regfree(&reg);
     return 0;
 
 errout:
     if (fp)
         fclose(fp);
-    regfree(&reg);
     return -1;
 }
 
-static int extract_mem_map(char *line, regex_t *reg, struct mem_map *map)
+static int extract_mem_map(char *line, struct mem_map *map)
 {
-    regmatch_t match[5];
-    if (regexec(reg, line, ARRAY_LEN(match), match, 0) != 0)
-        return 0;
+    unsigned long start, end, offset, major, minor, inode;
+    char perms[4], pathname[MAXPATH];
 
-    char *perms = substr(line, &match[3]);
-    if (!perms) {
-        s2e_lib_err("cannot match permission string in /proc/[pid]/maps");
+    int nscanf = sscanf(line, "%lx-%lx %4c %lx %lx:%lx %lu %s",
+                        &start, &end, perms, &offset,
+                        &major, &minor, &inode, pathname);
+    if (nscanf < 7) {
+        s2e_unix_err("parse /proc/pid/map error");
         return -1;
     }
+
     if (strncmp(perms, "---", 3) == 0)
         return 0; /* Maybe we can ignore this kind of maps. */
 
-    void *start = (void *)hexstr_to_long(substr(line, &match[1]));
-    void *end = (void *)hexstr_to_long(substr(line, &match[2]));
-    if (start == NULL || end == NULL) {
-        s2e_lib_err("cannot parse address string in /proc/[pid]/maps");
-        return -1;
-    }
-
-    map->start = start;
-    map->end = end;
+    map->start = (void *)start;
+    map->end = (void *)end;
     map->prot = str_to_prot(perms);
     return 1;
 }
@@ -125,23 +104,6 @@ static int add_mem_map(struct snapshot *ss, struct mem_map *map)
     struct mem_map *new_map = &ss->maps[ss->n_maps++];
     memcpy(new_map, map, sizeof(*map));
     return 0;
-}
-
-static char *substr(char *str, regmatch_t *match)
-{
-    assert(str && match->rm_eo >= match->rm_so);
-    if (match->rm_so == match->rm_eo)
-        return NULL;
-    return str + match->rm_so;
-}
-
-static long hexstr_to_long(const char *str)
-{
-    if (!str)
-        return 0;
-    long ret = 0;
-    sscanf(str, "%lx", &ret);
-    return ret;
 }
 
 static int str_to_prot(const char *perms)
@@ -185,7 +147,7 @@ int get_fdinfo(pid_t pid, int fd, struct fdstat *fdstat)
 {
     char link[MAXPATH];
     snprintf(link, ARRAY_LEN(link), "/proc/%d/fdinfo/%d", (int)pid, fd);
-    
+
     FILE *fdinfo_fp = NULL;
     if ((fdinfo_fp = fopen(link, "r")) == NULL) {
         s2e_lib_err("Fail to open %s", link);
@@ -255,7 +217,7 @@ void snapshot_show(struct snapshot *ss)
                pmap->prot & PROT_WRITE ? 'w' : '-',
                pmap->prot & PROT_EXEC ? 'x' : '-');
     }
-    
+
     printf("\nFile Desciptors\n");
     struct fdstat *pfdstat = ss->fdstat;
     for (int i = 0; i < ss->n_fds; i++, pfdstat++) {

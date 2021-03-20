@@ -17,10 +17,9 @@ void s2e_set_errmsg(int errnoflag, int error, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(errmsg_buf, MAXBUF - 1, fmt, ap);
+    vsnprintf(errmsg_buf, MAXBUF, fmt, ap);
     if (errnoflag)
-        snprintf(errmsg_buf + strlen(errmsg_buf), MAXBUF - strlen(errmsg_buf) - 1,
+        snprintf(errmsg_buf + strlen(errmsg_buf), MAXBUF - strlen(errmsg_buf),
                  ": %s", strerror(error));
-    strcat(errmsg_buf, "\n");
     va_end(ap);
 }
