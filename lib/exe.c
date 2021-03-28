@@ -185,7 +185,11 @@ static char *generate_restore_code(struct snapshot *ss, uintptr_t base, size_t *
         int fd = pfdstat->fd;
         if (!S_ISREG(pfdstat->filestat.st_mode))
             continue;
-        snprintf(path, ARRAY_LEN(path), "%d", fd);
+        if (snprintf(path, ARRAY_LEN(path), "%s/%d",
+            ss->snapshot_dir, fd) >= ARRAY_LEN(path)) {
+            s2e_unix_err("exceed max path length");
+            goto errout;
+        }
         INS_SYSCALL3(cbuf, SYS_open, base + (dbuf - buf), pfdstat->oflag, 0);
         INS_STR(dbuf, path);
 
@@ -208,6 +212,9 @@ static char *generate_restore_code(struct snapshot *ss, uintptr_t base, size_t *
         INS_MOV_I2RSI(cbuf, pfdstat->offset);
         INS_MOV_I2RDX(cbuf, SEEK_SET);
         INS_SYSCALL0(cbuf, SYS_lseek);
+
+        assert(cbuf < buf + PAGE_SIZE);
+        assert(dbuf < buf + 2*PAGE_SIZE);
     }
 
     /* Recover registers (except rax and rip).
@@ -243,6 +250,10 @@ static char *generate_restore_code(struct snapshot *ss, uintptr_t base, size_t *
     INS_RET(cbuf);
 
     return buf;
+
+errout:
+    free(buf);
+    return NULL;
 }
 
 static uintptr_t find_available_vaddr(struct exe *ex)

@@ -15,20 +15,23 @@ int snap2exe(int pid, const char *save_dir)
         return -1;
     }
 
-    // TODO: make snapshot_dir unique between different calls.
+    // snapshot_dir should be unique between different calls.
     char snapshot_dir[MAXPATH];
-    snprintf(snapshot_dir, ARRAY_LEN(snapshot_dir), "%s/%ld",
-             save_dir, (long)time(NULL));
+    if (snprintf(snapshot_dir, ARRAY_LEN(snapshot_dir), "%s/%ld-%ld",
+                 save_dir, (long)time(NULL), (long)getpid()) >= ARRAY_LEN(snapshot_dir)) {
+        s2e_unix_err("exceed max path length");
+        return -1;
+    }
     if (mkdir(snapshot_dir, 0777) < 0) {
         s2e_unix_err("mkdir '%s' error", snapshot_dir);
         return -1;
     }
 
     struct snapshot ss;
-    if (snapshot_build(&ss, pid) < 0)
+    if (snapshot_build(&ss, snapshot_dir, pid) < 0)
         return -1;
-
-    if (snapshot_dump_opened_files(&ss, snapshot_dir) < 0)
+    // snapshot_show(&ss);
+    if (snapshot_dump(&ss) < 0)
         return -1;
 
     struct exe ex;
@@ -36,7 +39,11 @@ int snap2exe(int pid, const char *save_dir)
         return -1;
 
     char exec_path[MAXPATH];
-    snprintf(exec_path, ARRAY_LEN(exec_path), "%s/cont", snapshot_dir);
+    if (snprintf(exec_path, ARRAY_LEN(exec_path), "%s/cont",
+                 snapshot_dir)>= ARRAY_LEN(snapshot_dir)) {
+        s2e_unix_err("exceed max path length: '%s/cont'", snapshot_dir);
+        return -1;
+    }
     int fd = open(exec_path, O_CREAT|O_RDWR, 0700);
     if (fd < 0) {
         s2e_unix_err("fail to open new exec: %s", exec_path);

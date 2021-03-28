@@ -165,7 +165,7 @@ int proc_mem_read(pid_t pid, void *addr, char *buf, size_t size)
 
     if (lseek(fd, (off_t)addr, SEEK_SET) == (off_t)-1)
         goto close_and_err_out;
- 
+
     if ((nread = read(fd, buf, size)) < 0)
         goto close_and_err_out;
 
@@ -374,6 +374,7 @@ int find_in_array(int val, int arr[], int size)
 
 int mkdir_p(const char *path, mode_t mode)
 {
+    assert(path);
     char *sep = strrchr(path, '/');
     if (sep) {
         *sep = '\0';
@@ -384,4 +385,19 @@ int mkdir_p(const char *path, mode_t mode)
     if (mkdir(path, 0777) < 0 && errno != EEXIST)
         return -1;
     return 0;
+}
+
+char *abspath(const char *path, char *buf, int size)
+{
+    if (!path || !buf)
+        return NULL;
+    if (path[0] == '/')
+        return strncpy(buf, path, size);
+
+    char cwd[MAXPATH];
+    if (!getcwd(cwd, ARRAY_LEN(cwd)))
+        return NULL;
+    if (snprintf(buf, size, "%s/%s", cwd, path) >= size)
+        return NULL;
+    return buf;
 }

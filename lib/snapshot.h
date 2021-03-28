@@ -5,11 +5,15 @@
 #include <sys/stat.h>
 #include <sys/user.h>
 
+#include "config.h"
+
 struct mem_map {
     void *start;
     void *end;
     int prot;
 };
+
+char *fetch_mem_map(pid_t pid, struct mem_map *map);
 
 struct fdstat {
     int fd;
@@ -23,6 +27,7 @@ struct fdstat {
 
 struct snapshot {
     pid_t pid;
+    char snapshot_dir[MAXPATH];
     struct user_regs_struct regs;
     int n_maps;
     struct mem_map maps[MAX_MEM_MAPS];
@@ -30,9 +35,8 @@ struct snapshot {
     struct fdstat fdstat[MAX_FDSTAT];
 };
 
-int snapshot_build(struct snapshot *ss, pid_t pid);
+int snapshot_build(struct snapshot *ss, const char *snapshot_dir, pid_t pid);
 void snapshot_show(struct snapshot *ss);
-int snapshot_dump_opened_files(struct snapshot *ss, const char *dump_dir);
-char *fetch_mem_map(pid_t pid, struct mem_map *map);
+int snapshot_dump(struct snapshot *ss);
 
 #endif // _SNAPSHOT_H

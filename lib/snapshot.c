@@ -17,9 +17,14 @@ static int get_fdstat(pid_t pid, int fd, void *data);
 static int get_fdinfo(pid_t pid, int fd, struct fdstat *fdstat);
 static int add_fdstat(struct snapshot *ss, struct fdstat *fdstat);
 
-int snapshot_build(struct snapshot *ss, pid_t pid)
+
+int snapshot_build(struct snapshot *ss, const char *snapshot_dir, pid_t pid)
 {
     ss->pid = pid;
+    if (!abspath(snapshot_dir, ss->snapshot_dir, ARRAY_LEN(ss->snapshot_dir))) {
+        s2e_unix_err("fail to get abspath of %s", snapshot_dir);
+        return -1;
+    }
     ss->n_maps = 0;
     ss->n_fds = 0;
 
@@ -227,7 +232,14 @@ void snapshot_show(struct snapshot *ss)
     }
 }
 
-int snapshot_dump_opened_files(struct snapshot *ss, const char *dump_dir)
+static int dump_opened_files(struct snapshot *ss);
+
+int snapshot_dump(struct snapshot *ss)
+{
+    return dump_opened_files(ss);
+}
+
+static int dump_opened_files(struct snapshot *ss)
 {
     char dump_path[MAXPATH];
     char src_path[MAXPATH];
@@ -235,7 +247,11 @@ int snapshot_dump_opened_files(struct snapshot *ss, const char *dump_dir)
     for (int i = 0; i < ss->n_fds; i++, pfdstat++) {
         if (!S_ISREG(pfdstat->filestat.st_mode))
             continue;
-        snprintf(dump_path, ARRAY_LEN(dump_path), "%s/%d", dump_dir, pfdstat->fd);
+        if (snprintf(dump_path, ARRAY_LEN(dump_path), "%s/%d",
+                     ss->snapshot_dir, pfdstat->fd) >= ARRAY_LEN(dump_path)) {
+            s2e_unix_err("exceed max path length");
+            return -1;
+        }
         snprintf(src_path, ARRAY_LEN(src_path), "/proc/%d/fd/%d", ss->pid, pfdstat->fd);
         if (copy_file(dump_path, src_path) < 0) {
             s2e_unix_err("copy '%s' to '%s' error", src_path, dump_path);

@@ -43,5 +43,6 @@ int lock_reg(int fd, int cmd, int type, off_t offset, int whence, off_t len);
 int detached_fork();
 int find_in_array(int val, int arr[], int size);
 int mkdir_p(const char *path, mode_t mode);
+char *abspath(const char *path, char *buf, int size);
 
 #endif /* _UTILS_H */
