@@ -4,12 +4,20 @@
 #include <sys/types.h>
 #include <errno.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* snap2exe.c */
 int snap2exe(pid_t pid, const char *new_exec);
 
 /* error.c */
 char *s2e_errmsg(char *buf, size_t len);
 void s2e_set_errmsg(int errnoflag, int error, const char *fmt, ...);
+
+#ifdef __cplusplus
+}
+#endif
 
 #define s2e_unix_err(fmt, ...) \
     do { \
