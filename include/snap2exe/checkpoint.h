@@ -2,7 +2,7 @@
 #define _SNAP2EXE_CHECKPOINT_H
 
 #ifdef __cplusplus
-#define extern "C" {
+extern "C" {
 #endif
 
 /* checkpoint.c */
