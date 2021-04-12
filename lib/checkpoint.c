@@ -13,12 +13,18 @@ static void exit_without_side_effects(int status);
 static void sync_as_tracee();
 static void sync_as_tracer();
 
+static int is_snapshot_exe = 0;
+
 /* Return  0 if continued from original processes.
    Return  1 if continued from recovered snapshot executables.
    Return -1 if error. */
 int checkpoint(int cond, const char *save_dir)
 {
     if (!cond)
+        return 0;
+
+    /* Prevent nested snapshots. */
+    if (is_snapshot_exe)
         return 0;
 
     once_init();
@@ -28,14 +34,15 @@ int checkpoint(int cond, const char *save_dir)
        return -1;
 
     if (pid == 0) {
-        set_log_identity("tracer");
+        set_log_identity("snapshoter");
 
         if ((pid = fork()) < 0) {
             log_unix_error("fork error");
             exit_without_side_effects(EXIT_FAILURE);
         }
         if (pid == 0) {
-            set_log_identity("tracee");
+            set_log_identity("snapshot-exe");
+            is_snapshot_exe = 1;
             sync_as_tracee();
             /* Recovered executables will continue from here. */
             return 1;

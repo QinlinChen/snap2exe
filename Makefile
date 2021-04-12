@@ -30,7 +30,7 @@ $(snap2exe_lib): $(lib_objs)
 $(obj_dir)/%.o: %.c
 	@echo + CC $<
 	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) -MMD -c -o $@ $<
+	@$(CC) $(CFLAGS) -fPIC -MMD -c -o $@ $<
 
 -include $(objs:.o/.d)
 
