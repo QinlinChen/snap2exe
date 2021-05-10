@@ -40,11 +40,13 @@ int checkpoint(int cond, const char *save_dir)
             log_unix_error("fork error");
             exit_without_side_effects(EXIT_FAILURE);
         }
+
         if (pid == 0) {
             set_log_identity("snapshot-exe");
             is_snapshot_exe = 1;
             sync_as_tracee();
             /* Recovered executables will continue from here. */
+            sbrk(1024); /* A trick to avoid crashing caused by malloc. */
             return 1;
         }
         sync_as_tracer(pid);
