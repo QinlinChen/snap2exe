@@ -126,7 +126,7 @@ static int str_to_prot(const char *perms)
 static int build_fdstat(struct snapshot *ss)
 {
     int ret;
-    if ((ret = proc_traverse_fds(ss->pid, (void *)ss, get_fdstat)) < 0) {
+    if ((ret = proc_traverse_fds(ss->pid, get_fdstat, (void *)ss)) < 0) {
         if (ret == -1)
             s2e_unix_err("proc_traverse_fds error");
         /* Otherwise, the error massage has been set by the handler. */

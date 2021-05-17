@@ -101,7 +101,7 @@ int ptrace_write(pid_t pid, void *addr, void *buf, size_t size)
  *                     procfs
  * ------------------------------------------------ */
 
-int proc_traverse_fds(pid_t pid, void *data, int (*handle)(pid_t, int, void *))
+int proc_traverse_fds(pid_t pid, int (*handle)(pid_t, int, void *), void *data)
 {
     char dirname[MAXPATH];
     DIR *dir;
