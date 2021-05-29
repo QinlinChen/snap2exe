@@ -7,18 +7,25 @@
 #include "snap2exe/snap2exe.h"
 #include "utils.h"
 
-static int build_mem_maps(struct snapshot *ss);
-static int extract_mem_map(char *line, struct mem_map *map);
-static int add_mem_map(struct snapshot *ss, struct mem_map *map);
-static int str_to_prot(const char *perms);
-
-static int build_fdstat(struct snapshot *ss);
-static int get_fdstat(pid_t pid, int fd, void *data);
-static int get_fdinfo(pid_t pid, int fd, struct fdstat *fdstat);
-static int add_fdstat(struct snapshot *ss, struct fdstat *fdstat);
-
+static int snapshot_init(struct snapshot *ss, const char *snapshot_dir, pid_t pid);
+static int dump_user_status(struct snapshot *ss);
+static int dump_kernel_status(struct snapshot *ss);
+static int dump_env(struct snapshot *ss);
 
 int snapshot_build(struct snapshot *ss, const char *snapshot_dir, pid_t pid)
+{
+    if (snapshot_init(ss, snapshot_dir, pid) != 0)
+        return -1;
+    if (dump_user_status(ss) < 0)
+        return -1;
+    if (dump_kernel_status(ss) < 0)
+        return -1;
+    if (dump_env(ss) < 0)
+        return -1;
+    return 0;
+}
+
+static int snapshot_init(struct snapshot *ss, const char *snapshot_dir, pid_t pid)
 {
     ss->pid = pid;
     if (!abspath(snapshot_dir, ss->snapshot_dir, ARRAY_LEN(ss->snapshot_dir))) {
@@ -27,23 +34,35 @@ int snapshot_build(struct snapshot *ss, const char *snapshot_dir, pid_t pid)
     }
     ss->n_maps = 0;
     ss->n_fds = 0;
+    return 0;
+}
 
-    if (ptrace_getregs(pid, &ss->regs) != 0) {
+static int dump_regs(struct snapshot *ss);
+static int dump_mem_maps(struct snapshot *ss);
+static int extract_mem_map(char *line, struct mem_map *map);
+static int add_mem_map(struct snapshot *ss, struct mem_map *map);
+static int str_to_prot(const char *perms);
+
+static int dump_user_status(struct snapshot *ss)
+{
+    if (dump_regs(ss) < 0)
+        return -1;
+    if (dump_mem_maps(ss) < 0)
+        return -1;
+    return 0;
+}
+
+static int dump_regs(struct snapshot *ss)
+{
+    if (ptrace_getregs(ss->pid, &ss->regs) != 0) {
         s2e_unix_err("ptrace getregs error");
         return -1;
     }
-
-    if (build_mem_maps(ss) < 0)
-        return -1;
-
-    if (build_fdstat(ss) < 0)
-        return -1;
-
     return 0;
 }
 
 /* Parse memory maps from /proc/[pid]/maps. */
-static int build_mem_maps(struct snapshot *ss)
+static int dump_mem_maps(struct snapshot *ss)
 {
     FILE *fp;
     char filepath[MAXPATH];
@@ -93,6 +112,11 @@ static int extract_mem_map(char *line, struct mem_map *map)
     if (strncmp(perms, "---", 3) == 0)
         return 0; /* Maybe we can ignore this kind of maps. */
 
+    if (strncmp(pathname, "[vvar]", MAXPATH) == 0
+        || strncmp(pathname, "[vdso]", MAXPATH) == 0
+        || strncmp(pathname, "[vsyscall]", MAXPATH) == 0)
+        return 0;
+
     map->start = (void *)start;
     map->end = (void *)end;
     map->prot = str_to_prot(perms);
@@ -123,7 +147,17 @@ static int str_to_prot(const char *perms)
     return prot;
 }
 
-static int build_fdstat(struct snapshot *ss)
+static int dump_fdstat(struct snapshot *ss);
+static int get_fdstat(pid_t pid, int fd, void *data);
+static int get_fdinfo(pid_t pid, int fd, struct fdstat *fdstat);
+static int add_fdstat(struct snapshot *ss, struct fdstat *fdstat);
+
+static int dump_kernel_status(struct snapshot *ss)
+{
+    return dump_fdstat(ss);
+}
+
+static int dump_fdstat(struct snapshot *ss)
 {
     int ret;
     if ((ret = proc_traverse_fds(ss->pid, get_fdstat, (void *)ss)) < 0) {
@@ -234,7 +268,7 @@ void snapshot_show(struct snapshot *ss)
 
 static int dump_opened_files(struct snapshot *ss);
 
-int snapshot_dump(struct snapshot *ss)
+static int dump_env(struct snapshot *ss)
 {
     return dump_opened_files(ss);
 }

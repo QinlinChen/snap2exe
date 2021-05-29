@@ -8,7 +8,13 @@
 #include "exe.h"
 #include "utils.h"
 
-int snap2exe(int pid, const char *save_dir)
+/* Snapshot the process indicated by pid as an executable.
+   TODO: If pid == self, i.e., the caller wants to snapshot itself,
+   we have a fast implementation.
+   Otherwise, we use ptrace to to peek the status of the target process.
+   The caller should take the responsibility for attaching the tracee.
+   Return 0 on success and return -1 on error. */
+int snap2exe(pid_t pid, const char *save_dir)
 {
     if (mkdir_p(save_dir, 0777) < 0) {
         s2e_unix_err("mkdir '%s' error", save_dir);
@@ -31,8 +37,6 @@ int snap2exe(int pid, const char *save_dir)
     if (snapshot_build(&ss, snapshot_dir, pid) < 0)
         return -1;
     // snapshot_show(&ss);
-    if (snapshot_dump(&ss) < 0)
-        return -1;
 
     struct exe ex;
     if (exe_build_from_snapshot(&ex, &ss) < 0)

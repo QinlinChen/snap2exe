@@ -37,6 +37,5 @@ struct snapshot {
 
 int snapshot_build(struct snapshot *ss, const char *snapshot_dir, pid_t pid);
 void snapshot_show(struct snapshot *ss);
-int snapshot_dump(struct snapshot *ss);
 
 #endif // _SNAPSHOT_H

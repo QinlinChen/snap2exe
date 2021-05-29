@@ -158,12 +158,76 @@ static uintptr_t exe_add_restore_seg(struct exe *ex, struct snapshot *ss)
     return phdr.p_vaddr;
 }
 
+const char *tmpl_text_start =
+    ".global _start\n"
+    ".text\n"
+    "_start:\n";
+
+const char *tmpl_restore_fsbase =
+    "    movq $%lld, %%rax\n"
+    "    movq $%lld, %%rdi\n"
+    "    movq $%lld, %%rsi\n"
+    "    syscall\n";
+
+const char *tmpl_restore_general_regs =
+    "    movq $%lld, %%rbx\n"
+    "    movq $%lld, %%rcx\n"
+    "    movq $%lld, %%rdx\n"
+    "    movq $%lld, %%rsp\n"
+    "    movq $%lld, %%rbp\n"
+    "    movq $%lld, %%rsi\n"
+    "    movq $%lld, %%rdi\n"
+    "    movq $%lld, %%r8\n"
+    "    movq $%lld, %%r9\n"
+    "    movq $%lld, %%r10\n"
+    "    movq $%lld, %%r11\n"
+    "    movq $%lld, %%r12\n"
+    "    movq $%lld, %%r13\n"
+    "    movq $%lld, %%r14\n"
+    "    movq $%lld, %%r15\n";
+
+const char *tmpl_restore_eflags =
+    "    movq $%lld, %%rax\n"
+    "    pushq %%rax\n"
+    "    popfq\n";
+
+const char *tmpl_push_rip =
+    "    movq $%lld, %%rax\n"
+    "    pushq %%rax\n";
+
+const char *tmpl_restore_rax =
+    "    movq $%lld, %%rax\n";
+
+const char *tmpl_ret =
+    "    retq\n";
+
 /* There are several ways to do this, one being the automatic generation
    of assembly file to do that and then compiling it. However, this would
    require an assembler present. Instead, a simpler approach can be used,
    simply write the exact machine code... */
 static char *generate_restore_code(struct snapshot *ss, uintptr_t base, size_t *size)
 {
+    // char tmpfile[] = "/tmp/snap2exe_restore.XXXXXX";
+    // int fd = mkstemp(tmpfile);
+    // FILE *fp = fdopen(fd, "w");
+
+    // struct user_regs_struct *r = &ss->regs;
+    // fprintf(fp, tmpl_text_start);
+    // fprintf(fp, tmpl_restore_general_regs,
+    //     r->rbx, r->rcx, r->rdx, r->rsp, r->rbp, r->rsi, r->rdi,
+    //     r->r8, r->r9, r->r10, r->r11, r->r12, r->r13, r->r14, r->r15);
+    // fprintf(fp, tmpl_restore_eflags, r->eflags);
+    // fprintf(fp, tmpl_push_rip, r->rip);
+    // fprintf(fp, tmpl_ret);
+    // fclose(fp);
+    // close(fd);
+
+    // char restore_code_file[MAXLINE];
+    // snprintf(restore_code_file, ARRAY_LEN(restore_code_file), "%s.exe", tmpfile);
+    // char cmd[MAXLINE];
+    // snprintf(cmd, ARRAY_LEN(cmd), "gcc -nostdlib -static -pie %s -o %s", tmpfile, restore_code_file);
+    // system(cmd);
+
     char *buf = malloc(2*PAGE_SIZE); /* Should be more than enough. */
     if (!buf)
         return NULL;

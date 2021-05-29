@@ -50,6 +50,8 @@ int main()
         printf("continued from snapshot!\n");
     }
 
+    sleep(5);
+
     // test malloc
     printf("brk after checkpoint: %p\n", sbrk(0));
     int n = 1000000;
