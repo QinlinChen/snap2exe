@@ -22,7 +22,7 @@ struct fdstat {
     int oflag;
 };
 
-#define MAX_MEM_MAPS    50
+#define MAX_MEM_MAPS    128
 #define MAX_FDSTAT      256
 
 struct snapshot {

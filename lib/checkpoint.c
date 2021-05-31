@@ -9,6 +9,7 @@
 #include "utils.h"
 
 static void once_init();
+static int is_time_to_snapshot();
 static void exit_without_side_effects(int status);
 static void sync_as_tracee();
 static void sync_as_tracer();
@@ -28,6 +29,9 @@ int checkpoint(int cond, const char *save_dir)
         return 0;
 
     once_init();
+
+    if (!is_time_to_snapshot())
+        return 0;
 
     pid_t pid;
     if ((pid = fork()) < 0)
@@ -98,6 +102,16 @@ static void once_init()
     int ret = load_config(config_file);
     if (ret == -1)
         log_unix_error("load config error");
+}
+
+static int random_scheduler(int prob)
+{
+    return (rand() % 100) < prob;
+}
+
+static int is_time_to_snapshot()
+{
+    return random_scheduler(config.sched_prob);
 }
 
 static void exit_without_side_effects(int status)
