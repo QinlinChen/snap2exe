@@ -36,7 +36,7 @@ int main()
     int fd = open("Makefile", O_RDONLY);
     assert(fd >= 0);
     char buf[20];
-     if (read(fd, buf, sizeof(buf)) < 0) {
+    if (read(fd, buf, sizeof(buf)) < 0) {
         perror("read error");
     } else {
         buf[sizeof(buf)-1] = '\0';
@@ -44,13 +44,13 @@ int main()
     }
 
     // do snapshot
-    int ret = checkpoint(1, "snapshots-test-ckpt");
-    printf("checkpoint ret: %d\n", ret);
-    if (ret) {
+    int ret = checkpoint(1, "snapshots/test-ckpt");
+    assert(ret != -1);
+    if (ret == 1) {
         printf("continued from snapshot!\n");
     }
 
-    sleep(5);
+    sleep(3);
 
     // test malloc
     printf("brk after checkpoint: %p\n", sbrk(0));
@@ -82,7 +82,7 @@ int main()
     //     perror("checkpoint error");
     // } else if (ret == 1) {
     //     printf("continued from the second checkpoint!\n");
-    // } 
+    // }
     // printf("Do something...\n");
 
     return 0;

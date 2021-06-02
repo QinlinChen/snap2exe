@@ -28,7 +28,7 @@ int main()
 
     int fd = open("Makefile", O_RDONLY);
     assert(fd >= 0);
-    
+
     char buf[512];
     if (read(fd, buf, 20) < 0) {
         perror("read error");

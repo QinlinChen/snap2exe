@@ -10,7 +10,7 @@ file1:
     .asciz "filename"
 .text
 reopen:
-    # fd = open(file1, oflag， 0)
+    # fd = open(file1, oflag, 0)
     movq $2, %rax
     movq $file1, %rdi
     movq $0x1234567890, %rsi
