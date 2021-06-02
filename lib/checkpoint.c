@@ -46,10 +46,10 @@ int checkpoint(int cond, const char *save_dir)
         }
 
         if (pid == 0) {
-            set_log_identity("snapshot-exe");
+            set_log_identity("snapshotee");
             is_snapshot_exe = 1;
             sync_as_tracee();
-            /* Recovered executables will continue from here. */
+            /* Snapshot executables will continue from here. */
             sbrk(1024); /* A trick to avoid crashing caused by malloc. */
             return 1;
         }
@@ -57,7 +57,7 @@ int checkpoint(int cond, const char *save_dir)
 
         if (snap2exe(pid, save_dir) < 0) {
             char buf[MAXLINE];
-            log_error("%s", s2e_errmsg(buf, MAXLINE));
+            log_error("%s", s2e_errmsg(buf, ARRAY_LEN(buf)));
             exit_without_side_effects(EXIT_FAILURE);
         }
         exit_without_side_effects(EXIT_SUCCESS);

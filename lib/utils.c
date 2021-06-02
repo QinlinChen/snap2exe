@@ -372,16 +372,15 @@ int find_in_array(int val, int arr[], int size)
     return -1;
 }
 
-int mkdir_p(const char *path, mode_t mode)
+static int mkdir_p_rec(char *path, mode_t mode)
 {
-    assert(path);
     if (path[0] == '\0')
         return 0;
 
     char *sep = strrchr(path, '/');
     if (sep) {
         *sep = '\0';
-        if (mkdir_p(path, mode) < 0)
+        if (mkdir_p_rec(path, mode) < 0)
             return -1;
         *sep = '/';
     }
@@ -389,6 +388,17 @@ int mkdir_p(const char *path, mode_t mode)
     if (mkdir(path, 0777) < 0 && errno != EEXIST)
         return -1;
     return 0;
+}
+
+int mkdir_p(const char *path, mode_t mode)
+{
+    assert(path);
+    /* The input path is read-only but our algorithm needs a modifiable one,
+       so we make a writable copy here. */
+    char buf[MAXPATH];
+    memset(buf, 0, sizeof(buf));
+    strncpy(buf, path, ARRAY_LEN(buf) - 1);
+    return mkdir_p_rec(buf, mode);
 }
 
 char *abspath(const char *path, char *buf, int size)
