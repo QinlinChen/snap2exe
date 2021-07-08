@@ -24,6 +24,11 @@ int s2e_checkpoint(int cond, const char *save_dir, int policy)
     if (!cond)
         return 0;
 
+    if (!save_dir) {
+        log_error("Invalid argument: save_dir is NULL");
+        return -1;
+    }
+
     /* Prevent nested snapshots. */
     if (is_snapshot_exe)
         return 0;
@@ -34,14 +39,16 @@ int s2e_checkpoint(int cond, const char *save_dir, int policy)
         return 0;
 
     pid_t pid;
-    if ((pid = fork()) < 0)
-       return -1;
+    if ((pid = fork()) < 0) {
+        log_unix_error("fork snapshoter error");
+        return -1;
+    }
 
     if (pid == 0) {
         set_log_identity("snapshoter");
 
         if ((pid = fork()) < 0) {
-            log_unix_error("fork error");
+            log_unix_error("fork snapshotee error");
             exit_without_side_effects(EXIT_FAILURE);
         }
 
