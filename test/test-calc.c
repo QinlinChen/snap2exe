@@ -8,7 +8,7 @@ int sum(int left, int right)
     int sum = 0;
     for (int i = left; i < right; ++i) {
         sum += i;
-        s2e_checkpoint(i == right - 1, "snapshots/test-calc"); // snapshot when i == right - 1.
+        s2e_checkpoint(i == right - 1, "snapshots/test-calc", S2E_SCHED_MUST); // snapshot when i == right - 1.
     }
     return sum;
 }

@@ -6,10 +6,10 @@
 
 #include "snap2exe/snap2exe.h"
 #include "log.h"
+#include "sched.h"
 #include "utils.h"
 
 static void once_init();
-static int is_time_to_snapshot();
 static void exit_without_side_effects(int status);
 static void sync_as_tracee();
 static void sync_as_tracer();
@@ -19,7 +19,7 @@ static int is_snapshot_exe = 0;
 /* Return  0 if continued from original processes.
    Return  1 if continued from recovered snapshot executables.
    Return -1 if error. */
-int s2e_checkpoint(int cond, const char *save_dir)
+int s2e_checkpoint(int cond, const char *save_dir, int policy)
 {
     if (!cond)
         return 0;
@@ -30,7 +30,7 @@ int s2e_checkpoint(int cond, const char *save_dir)
 
     once_init();
 
-    if (!is_time_to_snapshot())
+    if (!is_time_to_snapshot(policy))
         return 0;
 
     pid_t pid;
@@ -102,16 +102,6 @@ static void once_init()
     int ret = load_config(config_file);
     if (ret == -1)
         log_unix_error("load config error");
-}
-
-static int random_scheduler(int prob)
-{
-    return (rand() % 100) < prob;
-}
-
-static int is_time_to_snapshot()
-{
-    return random_scheduler(config.sched_prob);
 }
 
 static void exit_without_side_effects(int status)

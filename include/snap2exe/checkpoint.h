@@ -5,8 +5,13 @@
 extern "C" {
 #endif
 
+enum {
+    S2E_SCHED_MUST,
+    S2E_SCHED_PROB,
+};
+
 /* checkpoint.c */
-int s2e_checkpoint(int cond, const char *save_dir);
+int s2e_checkpoint(int cond, const char *save_dir, int policy);
 
 #ifdef __cplusplus
 }
