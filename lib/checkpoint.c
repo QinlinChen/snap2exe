@@ -19,7 +19,7 @@ static int is_snapshot_exe = 0;
 /* Return  0 if continued from original processes.
    Return  1 if continued from recovered snapshot executables.
    Return -1 if error. */
-int checkpoint(int cond, const char *save_dir)
+int s2e_checkpoint(int cond, const char *save_dir)
 {
     if (!cond)
         return 0;

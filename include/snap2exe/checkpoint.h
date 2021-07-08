@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 /* checkpoint.c */
-int checkpoint(int cond, const char *save_dir);
+int s2e_checkpoint(int cond, const char *save_dir);
 
 #ifdef __cplusplus
 }

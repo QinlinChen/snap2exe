@@ -44,7 +44,7 @@ int main()
     }
 
     // do snapshot
-    int ret = checkpoint(1, "snapshots/test-ckpt");
+    int ret = s2e_checkpoint(1, "snapshots/test-ckpt");
     assert(ret != -1);
     if (ret == 1) {
         printf("continued from snapshot!\n");
@@ -77,7 +77,7 @@ int main()
     printf("heap_var...[%p]=0x%08x\n", heap_var, *heap_var);
 
     // test: avoid nested checkpoint.
-    // ret = checkpoint(1, "snapshots-test-ckpt");
+    // ret = s2e_checkpoint(1, "snapshots-test-ckpt");
     // if (ret < 0) {
     //     perror("checkpoint error");
     // } else if (ret == 1) {
