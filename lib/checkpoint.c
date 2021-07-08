@@ -13,6 +13,7 @@ static void once_init();
 static void exit_without_side_effects(int status);
 static void sync_as_tracee();
 static void sync_as_tracer();
+static const char *snapshot_default_save_dir();
 
 static int is_snapshot_exe = 0;
 
@@ -21,6 +22,10 @@ static int is_snapshot_exe = 0;
    Return -1 if error. */
 int s2e_checkpoint(int cond, const char *save_dir, int policy)
 {
+    /* Prevent nested snapshots. */
+    if (is_snapshot_exe)
+        return 0;
+
     if (!cond)
         return 0;
 
@@ -28,10 +33,6 @@ int s2e_checkpoint(int cond, const char *save_dir, int policy)
         log_error("Invalid argument: save_dir is NULL");
         return -1;
     }
-
-    /* Prevent nested snapshots. */
-    if (is_snapshot_exe)
-        return 0;
 
     once_init();
 
@@ -62,6 +63,8 @@ int s2e_checkpoint(int cond, const char *save_dir, int policy)
         }
         sync_as_tracer(pid);
 
+        if (save_dir == S2E_DEFAULT_SAVE_DIR)
+            save_dir = snapshot_default_save_dir();
         if (snap2exe(pid, save_dir) < 0) {
             char buf[MAXLINE];
             log_error("%s", s2e_errmsg(buf, ARRAY_LEN(buf)));
@@ -148,4 +151,25 @@ static void sync_as_tracer(pid_t pid)
         log_unix_error("ptrace_setoptions error");
         exit_without_side_effects(EXIT_FAILURE);
     }
+}
+
+static const char *snapshot_default_save_dir()
+{
+    static char dir[MAXPATH];
+
+    if (dir[0])
+        return dir;
+
+    char my_prog_name[MAXPATH];
+    memset(my_prog_name, 0, sizeof(my_prog_name));
+    if (readlink("/proc/self/exe", my_prog_name, sizeof(my_prog_name)) == -1)
+        snprintf(my_prog_name, sizeof(my_prog_name), "unknown");
+    my_prog_name[sizeof(my_prog_name) - 1] = '\0';
+
+    const char *home = getenv("HOME");
+    if (!home)
+        home = "/tmp";
+
+    snprintf(dir, sizeof(dir), "%s/.snapshots/%s", home, my_prog_name);
+    return dir;
 }
