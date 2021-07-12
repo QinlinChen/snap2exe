@@ -6,7 +6,7 @@
 #include "log.h"
 #include "utils.h"
 
-/* Default configures. */
+/* Default configuration. */
 struct s2e_config config = {
     .log_file = "/tmp/s2e.log",
     .log_level = LEVEL_ERROR,

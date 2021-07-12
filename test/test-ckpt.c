@@ -77,7 +77,7 @@ int main()
     printf("heap_var...[%p]=0x%08x\n", heap_var, *heap_var);
 
     // test: avoid nested checkpoint.
-    // ret = s2e_checkpoint(1, "snapshots-test-ckpt", S2E_SCHED_MUST);
+    // ret = s2e_checkpoint(1, "snapshots/test-ckpt", S2E_SCHED_MUST);
     // if (ret < 0) {
     //     perror("checkpoint error");
     // } else if (ret == 1) {

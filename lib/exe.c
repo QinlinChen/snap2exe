@@ -247,13 +247,14 @@ static char *generate_restore_code(struct snapshot *ss, uintptr_t base, size_t *
     char path[MAXPATH];
     for (int i = 0; i < ss->n_fds; i++, pfdstat++) {
         int fd = pfdstat->fd;
-        if (!S_ISREG(pfdstat->filestat.st_mode))
-            continue;
         if (snprintf(path, ARRAY_LEN(path), "%s/%d",
-            ss->snapshot_dir, fd) >= ARRAY_LEN(path)) {
+                     ss->snapshot_dir, fd) >= ARRAY_LEN(path)) {
             s2e_unix_err("exceed max path length");
             goto errout;
         }
+        if (access(path, F_OK) != 0)
+            continue;
+
         INS_SYSCALL3(cbuf, SYS_open, base + (dbuf - buf), pfdstat->oflag, 0);
         INS_STR(dbuf, path);
 

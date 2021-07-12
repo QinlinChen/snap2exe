@@ -276,20 +276,35 @@ static int dump_env(struct snapshot *ss)
 static int dump_opened_files(struct snapshot *ss)
 {
     char dump_path[MAXPATH];
-    char src_path[MAXPATH];
+    char src_link[MAXPATH];
+
     struct fdstat *pfdstat = ss->fdstat;
     for (int i = 0; i < ss->n_fds; i++, pfdstat++) {
-        if (!S_ISREG(pfdstat->filestat.st_mode))
-            continue;
         if (snprintf(dump_path, ARRAY_LEN(dump_path), "%s/%d",
                      ss->snapshot_dir, pfdstat->fd) >= ARRAY_LEN(dump_path)) {
             s2e_unix_err("exceed max path length");
             return -1;
         }
-        snprintf(src_path, ARRAY_LEN(src_path), "/proc/%d/fd/%d", ss->pid, pfdstat->fd);
-        if (copy_file(dump_path, src_path) < 0) {
-            s2e_unix_err("copy '%s' to '%s' error", src_path, dump_path);
-            return -1;
+        snprintf(src_link, ARRAY_LEN(src_link), "/proc/%d/fd/%d", ss->pid, pfdstat->fd);
+
+        if (S_ISREG(pfdstat->filestat.st_mode)) {
+            if (copy_file(dump_path, src_link) < 0) {
+                s2e_unix_err("copy '%s' to '%s' error", src_link, dump_path);
+                return -1;
+            }
+        } else if (S_ISCHR(pfdstat->filestat.st_mode)) {
+            char src_path[MAXPATH];
+            memset(src_path, 0, sizeof(src_path));
+            if (readlink(src_link, src_path, ARRAY_LEN(src_path)) == -1) {
+                s2e_unix_err("fail to readlink of '%s'", src_link);
+                return -1;
+            }
+            if (!strcmp(src_path, "/dev/null") || !strcmp(src_path, "/dev/zero")) {
+                if (symlink(src_path, dump_path) != 0) {
+                    s2e_unix_err("fail to link %s to %s", dump_path, src_path);
+                    return -1;
+                }
+            }
         }
     }
     return 0;
