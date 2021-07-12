@@ -28,7 +28,7 @@ int snapshot_build(struct snapshot *ss, const char *snapshot_dir, pid_t pid)
 static int snapshot_init(struct snapshot *ss, const char *snapshot_dir, pid_t pid)
 {
     ss->pid = pid;
-    if (!abspath(snapshot_dir, ss->snapshot_dir, ARRAY_LEN(ss->snapshot_dir))) {
+    if (!abspath(snapshot_dir, ss->snapshot_dir, sizeof(ss->snapshot_dir))) {
         s2e_unix_err("fail to get abspath of %s", snapshot_dir);
         return -1;
     }
@@ -66,7 +66,7 @@ static int dump_mem_maps(struct snapshot *ss)
 {
     FILE *fp;
     char filepath[MAXPATH];
-    snprintf(filepath, ARRAY_LEN(filepath), "/proc/%d/maps", ss->pid);
+    snprintf(filepath, sizeof(filepath), "/proc/%d/maps", ss->pid);
     if ((fp = fopen(filepath, "r")) == NULL) {
         s2e_unix_err("fail to open file: %s", filepath);
         goto errout;
@@ -75,7 +75,7 @@ static int dump_mem_maps(struct snapshot *ss)
     char *rd_ret;
     char line[MAXLINE];
     struct mem_map map;
-    while ((rd_ret = readline(fp, line, ARRAY_LEN(line))) != NULL) {
+    while ((rd_ret = readline(fp, line, sizeof(line))) != NULL) {
         if (rd_ret == (char *)-1)
             goto errout;
         int ret = extract_mem_map(line, &map);
@@ -185,7 +185,7 @@ static int get_fdstat(pid_t pid, int fd, void *data)
 int get_fdinfo(pid_t pid, int fd, struct fdstat *fdstat)
 {
     char link[MAXPATH];
-    snprintf(link, ARRAY_LEN(link), "/proc/%d/fdinfo/%d", (int)pid, fd);
+    snprintf(link, sizeof(link), "/proc/%d/fdinfo/%d", (int)pid, fd);
 
     FILE *fdinfo_fp = NULL;
     if ((fdinfo_fp = fopen(link, "r")) == NULL) {
@@ -194,14 +194,14 @@ int get_fdinfo(pid_t pid, int fd, struct fdstat *fdstat)
     }
 
     char line[MAXLINE];
-    if (readline(fdinfo_fp, line, ARRAY_LEN(line)) == (char *)-1) {
+    if (readline(fdinfo_fp, line, sizeof(line)) == (char *)-1) {
         s2e_lib_err("readline error");
         goto errout;
     }
     if (sscanf(line, "pos: %ld", &fdstat->offset) != 1)
         goto errout;
 
-    if (readline(fdinfo_fp, line, ARRAY_LEN(line)) == (char *)-1) {
+    if (readline(fdinfo_fp, line, sizeof(line)) == (char *)-1) {
         s2e_lib_err("readline error");
         goto errout;
     }
@@ -280,12 +280,12 @@ static int dump_opened_files(struct snapshot *ss)
 
     struct fdstat *pfdstat = ss->fdstat;
     for (int i = 0; i < ss->n_fds; i++, pfdstat++) {
-        if (snprintf(dump_path, ARRAY_LEN(dump_path), "%s/%d",
-                     ss->snapshot_dir, pfdstat->fd) >= ARRAY_LEN(dump_path)) {
+        if (snprintf(dump_path, sizeof(dump_path), "%s/%d",
+                     ss->snapshot_dir, pfdstat->fd) >= sizeof(dump_path)) {
             s2e_unix_err("exceed max path length");
             return -1;
         }
-        snprintf(src_link, ARRAY_LEN(src_link), "/proc/%d/fd/%d", ss->pid, pfdstat->fd);
+        snprintf(src_link, sizeof(src_link), "/proc/%d/fd/%d", ss->pid, pfdstat->fd);
 
         if (S_ISREG(pfdstat->filestat.st_mode)) {
             if (copy_file(dump_path, src_link) < 0) {
@@ -295,7 +295,7 @@ static int dump_opened_files(struct snapshot *ss)
         } else if (S_ISCHR(pfdstat->filestat.st_mode)) {
             char src_path[MAXPATH];
             memset(src_path, 0, sizeof(src_path));
-            if (readlink(src_link, src_path, ARRAY_LEN(src_path)) == -1) {
+            if (readlink(src_link, src_path, sizeof(src_path)) == -1) {
                 s2e_unix_err("fail to readlink of '%s'", src_link);
                 return -1;
             }

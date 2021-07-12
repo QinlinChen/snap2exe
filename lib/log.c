@@ -115,15 +115,15 @@ void log_without_lock(int level, const char *format, ...)
         return;
 
     char prefix[MAXLINE], tm[64], comm[MAXLINE];
-    snprintf(prefix, ARRAY_LEN(prefix), "[%s %s %s(%ld)](%s)",
-             level_to_str(level), read_time(tm, ARRAY_LEN(tm)),
+    snprintf(prefix, sizeof(prefix), "[%s %s %s(%ld)](%s)",
+             level_to_str(level), read_time(tm, sizeof(tm)),
              _log_identity, (long)getpid(),
-             read_cmdline(comm, ARRAY_LEN(comm)));
+             read_cmdline(comm, sizeof(comm)));
 
     char text[MAXLINE];
     va_list ap;
     va_start(ap, format);
-    vsnprintf(text, ARRAY_LEN(text), format, ap);
+    vsnprintf(text, sizeof(text), format, ap);
     va_end(ap);
 
     /* Do fprintf all at once to keep atomicity if possible. */

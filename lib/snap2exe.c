@@ -22,8 +22,8 @@ int snap2exe(pid_t pid, const char *save_dir)
 
     // snapshot_dir should be unique between different calls.
     char snapshot_dir[MAXPATH];
-    if (snprintf(snapshot_dir, ARRAY_LEN(snapshot_dir), "%s/%ld-%ld",
-                 save_dir, (long)time(NULL), (long)getpid()) >= ARRAY_LEN(snapshot_dir)) {
+    if (snprintf(snapshot_dir, sizeof(snapshot_dir), "%s/%ld-%ld",
+                 save_dir, (long)time(NULL), (long)getpid()) >= sizeof(snapshot_dir)) {
         s2e_unix_err("exceed max path length");
         return -1;
     }
@@ -42,8 +42,8 @@ int snap2exe(pid_t pid, const char *save_dir)
         return -1;
 
     char exec_path[MAXPATH];
-    if (snprintf(exec_path, ARRAY_LEN(exec_path), "%s/cont",
-                 snapshot_dir)>= ARRAY_LEN(snapshot_dir)) {
+    if (snprintf(exec_path, sizeof(exec_path), "%s/cont",
+                 snapshot_dir)>= sizeof(snapshot_dir)) {
         s2e_unix_err("exceed max path length: '%s/cont'", snapshot_dir);
         return -1;
     }

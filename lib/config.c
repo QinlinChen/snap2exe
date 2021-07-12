@@ -81,7 +81,7 @@ int load_config(const char *file)
         char *ret, *key, *val;
         int parse_ok;
 
-        ret = readline(fp, line, ARRAY_LEN(line));
+        ret = readline(fp, line, sizeof(line));
         if (ret == (char *)-1)
             goto close_and_err_out;
         if (!ret)

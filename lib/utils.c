@@ -107,7 +107,7 @@ int proc_traverse_fds(pid_t pid, int (*handle)(pid_t, int, void *), void *data)
     DIR *dir;
     struct dirent *ent;
 
-    snprintf(dirname, ARRAY_LEN(dirname), "/proc/%d/fd", (int)pid);
+    snprintf(dirname, sizeof(dirname), "/proc/%d/fd", (int)pid);
     if ((dir = opendir(dirname)) == NULL)
         return -1;
 
@@ -129,7 +129,7 @@ int proc_traverse_fds(pid_t pid, int (*handle)(pid_t, int, void *), void *data)
 int proc_fstat(pid_t pid, int fd, struct stat *buf)
 {
     char file[MAXPATH];
-    snprintf(file, ARRAY_LEN(file), "/proc/%d/fd/%d", (int)pid, fd);
+    snprintf(file, sizeof(file), "/proc/%d/fd/%d", (int)pid, fd);
     return stat(file, buf);
 }
 
@@ -138,7 +138,7 @@ int proc_fd_name(pid_t pid, int fd, char *buf, size_t size)
     char link[MAXPATH];
     size_t len;
 
-    snprintf(link, ARRAY_LEN(link), "/proc/%d/fd/%d", (int)pid, fd);
+    snprintf(link, sizeof(link), "/proc/%d/fd/%d", (int)pid, fd);
     if ((len = readlink(link, buf, size)) == -1) {
         buf[0] = '\0';
         return -1;
@@ -159,7 +159,7 @@ int proc_mem_read(pid_t pid, void *addr, char *buf, size_t size)
     char file[MAXPATH];
     int fd, nread;
 
-    snprintf(file, ARRAY_LEN(file), "/proc/%d/mem", (int)pid);
+    snprintf(file, sizeof(file), "/proc/%d/mem", (int)pid);
     if ((fd = open(file, O_RDONLY)) < 0)
         return -1;
 
@@ -397,7 +397,7 @@ int mkdir_p(const char *path, mode_t mode)
        so we make a writable copy here. */
     char buf[MAXPATH];
     memset(buf, 0, sizeof(buf));
-    strncpy(buf, path, ARRAY_LEN(buf) - 1);
+    strncpy(buf, path, sizeof(buf) - 1);
     return mkdir_p_rec(buf, mode);
 }
 
@@ -409,7 +409,7 @@ char *abspath(const char *path, char *buf, int size)
         return strncpy(buf, path, size);
 
     char cwd[MAXPATH];
-    if (!getcwd(cwd, ARRAY_LEN(cwd)))
+    if (!getcwd(cwd, sizeof(cwd)))
         return NULL;
     if (snprintf(buf, size, "%s/%s", cwd, path) >= size)
         return NULL;

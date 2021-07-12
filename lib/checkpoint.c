@@ -67,7 +67,7 @@ int s2e_checkpoint(int cond, const char *save_dir, int policy)
             save_dir = snapshot_default_save_dir();
         if (snap2exe(pid, save_dir) < 0) {
             char buf[MAXLINE];
-            log_error("%s", s2e_errmsg(buf, ARRAY_LEN(buf)));
+            log_error("%s", s2e_errmsg(buf, sizeof(buf)));
             exit_without_side_effects(EXIT_FAILURE);
         }
         exit_without_side_effects(EXIT_SUCCESS);
@@ -101,7 +101,7 @@ static void once_init()
     char config_file[MAXPATH];
     if (!(home = getenv("HOME")))
         return;
-    snprintf(config_file, ARRAY_LEN(config_file), "%s/.s2econfig", home);
+    snprintf(config_file, sizeof(config_file), "%s/.s2econfig", home);
 
     /* If the configure file doesn't exist, we create a default one. */
     if (access(config_file, F_OK) != 0) {
