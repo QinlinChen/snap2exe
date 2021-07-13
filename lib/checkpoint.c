@@ -20,13 +20,10 @@ static int is_snapshot_exe = 0;
 /* Return  0 if continued from original processes.
    Return  1 if continued from recovered snapshot executables.
    Return -1 if error. */
-int s2e_checkpoint(int cond, const char *save_dir, int policy)
+int s2e_checkpoint(const char *save_dir, int policy)
 {
     /* Prevent nested snapshots. */
     if (is_snapshot_exe)
-        return 0;
-
-    if (!cond)
         return 0;
 
     if (!save_dir) {

@@ -13,7 +13,7 @@ enum {
 #define S2E_DEFAULT_SAVE_DIR ((char *)-1)
 
 /* checkpoint.c */
-int s2e_checkpoint(int cond, const char *save_dir, int policy);
+int s2e_checkpoint(const char *save_dir, int policy);
 
 #ifdef __cplusplus
 }
