@@ -1,16 +1,19 @@
-build_dir      := ./build
-install_prefix := $$HOME/snap2exe
+ifeq ($(PREFIX),)
+	PREFIX := $$HOME/local/snap2exe
+endif
+
+build_dir := ./build
 
 # define project target, includes, and sources
 snap2exe_lib          := $(build_dir)/libsnap2exe.a
 snap2exe_lib_srcs     := $(shell find lib/ -name "*.c")
 snap2exe_bin          := $(build_dir)/snap2exe
 snap2exe_bin_srcs     := $(shell find src/ -name "*.c")
-snap2exe_include_dirs := ./include
+snap2exe_include_dir := ./include
 
 # common compile options
-CC     := gcc
-CFLAGS += -O2 -g -Wall $(addprefix -I, $(snap2exe_include_dirs))
+CC     ?= gcc
+CFLAGS += -O2 -g -Wall -I$(snap2exe_include_dir)
 LD     := $(CC)
 AR     := ar
 
@@ -40,14 +43,9 @@ clean:
 	-rm -rf $(build_dir)
 
 install: $(snap2exe_lib) $(snap2exe_bin)
-	@mkdir -p $(install_prefix)
-	@mkdir -p $(install_prefix)/bin
-	@cp $(snap2exe_bin) $(install_prefix)/bin
-	@mkdir -p $(install_prefix)/lib
-	@cp $(snap2exe_lib) $(install_prefix)/lib
-	@for include_dir in $(snap2exe_include_dirs); do \
-		cp -r $$include_dir $(install_prefix); \
-	done
+	@install -D -m 755 -t $(PREFIX)/bin $(snap2exe_bin)
+	@install -D -m 755 -t $(PREFIX)/lib $(snap2exe_lib)
+	@(cd $(snap2exe_include_dir) && find . -type f -exec install -D -m 644 {} $(PREFIX)/include/{} \;)
 
 test-tool: test/test-tool.c $(snap2exe_bin)
 	$(CC) $(CFLAGS) -o $@ test/test-tool.c
