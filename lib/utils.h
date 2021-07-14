@@ -31,6 +31,7 @@ int proc_fstat(pid_t pid, int fd, struct stat *buf);
 int proc_fd_name(pid_t pid, int fd, char *buf, size_t size);
 int proc_mem_read(pid_t pid, void *addr, char *buf, size_t size);
 int proc_str_read(pid_t pid, void *addr, char *buf, size_t size);
+int proc_cmdline_read(pid_t pid, char *buf, size_t size);
 
 /* io */
 char *readline(FILE *stream, char *buf, size_t size);

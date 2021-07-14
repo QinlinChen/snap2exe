@@ -80,28 +80,8 @@ static char *read_time(char *buf, int size)
 
 static char *read_cmdline(char *buf, size_t size)
 {
-    FILE *fp;
-
-    if ((fp = fopen("/proc/self/cmdline", "r")) == NULL)
-        goto err_out;
-
-    memset(buf, -1, size);
-    if (readline(fp, buf, size) == (char *)-1)
-        goto close_and_err_out;
-    fclose(fp);
-
-    int i = size - 1;
-    while (buf[i] == (char)-1)
-        --i;
-    for (--i; i >=0; --i)
-        if (buf[i] == '\0')
-            buf[i] = ' ';
-    return buf;
-
-close_and_err_out:
-    fclose(fp);
-err_out:
-    snprintf(buf, size, "comm error");
+    if (proc_cmdline_read(getpid(), buf, size) != 0)
+        snprintf(buf, size, "read cmdline error");
     return buf;
 }
 

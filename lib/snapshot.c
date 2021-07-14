@@ -266,11 +266,45 @@ void snapshot_show(struct snapshot *ss)
     }
 }
 
+static int dump_cmdline(struct snapshot *ss);
 static int dump_opened_files(struct snapshot *ss);
 
 static int dump_env(struct snapshot *ss)
 {
+    if (dump_cmdline(ss) != 0)
+        return -1;
     return dump_opened_files(ss);
+}
+
+static int dump_cmdline(struct snapshot *ss)
+{
+    int fd;
+    char cmdline[MAXPATH], save_file[MAXPATH];
+
+    if (proc_cmdline_read(getpid(), cmdline, sizeof(cmdline)) != 0) {
+        s2e_unix_err("proc_cmdline_read error");
+        return -1;
+    }
+
+    if (snprintf(save_file, sizeof(save_file),
+        "%s/cmdline", ss->snapshot_dir) >= sizeof(save_file)) {
+        s2e_unix_err("exceed max path length");
+        return -1;
+    }
+
+    if ((fd = open(save_file, O_WRONLY | O_CREAT | O_EXCL, 0644)) < 0) {
+        s2e_unix_err("open '%s' error", save_file);
+        return -1;
+    }
+
+    int nwrite = strlen(cmdline);
+    if (write(fd, cmdline, nwrite) != nwrite) {
+        s2e_unix_err("write cmdline error");
+        close(fd);
+        return -1;
+    }
+    close(fd);
+    return 0;
 }
 
 static int dump_opened_files(struct snapshot *ss)

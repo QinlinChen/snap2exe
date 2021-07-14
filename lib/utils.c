@@ -195,6 +195,42 @@ int proc_str_read(pid_t pid, void *addr, char *buf, size_t size)
     return nread;
 }
 
+int proc_cmdline_read(pid_t pid, char *buf, size_t size)
+{
+    char file[MAXPATH];
+    snprintf(file, sizeof(file), "/proc/%d/cmdline", (int)pid);
+
+    FILE *fp;
+    if ((fp = fopen(file, "r")) == NULL)
+        return -1;
+
+    memset(buf, -1, size);
+    if (readline(fp, buf, size) == (char *)-1)
+        goto close_and_err_out;
+    fclose(fp);
+
+    /* Scan the buf reversely to the end of the cmdline. */
+    int i = size - 1;
+    while (buf[i] == (char)-1)
+        --i;
+
+    /* The format of cmdline is: "{cmd}\0{arg1}\0...\0{argn}\0\0".
+       We first modify the second to last '\0' to '\n'. */
+    if (--i >= 0 && buf[i] == '\0') {
+        buf[i] = '\n';
+    } 
+
+    /* Then modify all '\0' to ' '. */
+    for (--i; i >= 0; --i)
+        if (buf[i] == '\0')
+            buf[i] = ' ';
+    return 0;
+
+close_and_err_out:
+    fclose(fp);
+    return -1;
+}
+
 /* ------------------------------------------------
  *                      io
  * ------------------------------------------------ */
@@ -294,7 +330,7 @@ int copy_file(const char *dst_file, const char *src_file)
     if ((src_fd = open(src_file, O_RDONLY)) < 0)
         return -1;
 
-    if ((dst_fd = open(dst_file, O_WRONLY | O_CREAT | O_EXCL, 0600)) < 0)
+    if ((dst_fd = open(dst_file, O_WRONLY | O_CREAT | O_EXCL, 0644)) < 0)
         goto errout;
 
     char buf[4096];

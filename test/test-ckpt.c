@@ -33,10 +33,10 @@ int main()
     printf("heap_var...[%p]=0x%08x\n", heap_var, *heap_var);
 
     // fs state
-    int fd = open("Makefile", O_RDONLY);
+    int fd = open("README.md", O_RDONLY);
     assert(fd >= 0);
     char buf[20];
-    if (read(fd, buf, sizeof(buf)) < 0) {
+    if (read(fd, buf, sizeof(buf)-1) < 0) {
         perror("read error");
     } else {
         buf[sizeof(buf)-1] = '\0';
@@ -63,10 +63,10 @@ int main()
     }
     printf("brk after malloc array: %p\n", sbrk(0));
 
-    if (read(fd, buf, 20) < 0) {
+    if (read(fd, buf, sizeof(buf)-1) < 0) {
         perror("read error");
     } else {
-        buf[19] = '\0';
+        buf[sizeof(buf)-1] = '\0';
         printf("%s\n", buf);
     }
 

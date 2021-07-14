@@ -49,7 +49,7 @@ int snap2exe(pid_t pid, const char *save_dir)
     }
     int fd = open(exec_path, O_CREAT|O_RDWR, 0700);
     if (fd < 0) {
-        s2e_unix_err("fail to open new exec: %s", exec_path);
+        s2e_unix_err("fail to open new exec: '%s'", exec_path);
         goto errout;
     }
     if (exe_save(fd, &ex) < 0)

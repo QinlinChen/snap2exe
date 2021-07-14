@@ -404,7 +404,7 @@ int exe_save(int fd, struct exe *ex)
 
 static void update_metadata_phdr(struct exe *ex)
 {
-    uintptr_t vaddr = 0x200000UL; // TODO: Fix this hard code.
+    uintptr_t vaddr = 0x200000UL; // TODO: fix this hard code.
     size_t metadata_size = ex->ehdr.e_phoff + ex->ehdr.e_phnum * ex->ehdr.e_phentsize;
 
     ex->metadata_phdr.p_vaddr = vaddr;
