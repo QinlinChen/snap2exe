@@ -37,7 +37,7 @@ int proc_cmdline_read(pid_t pid, char *buf, size_t size);
 char *readline(FILE *stream, char *buf, size_t size);
 void close_all_fds(int (*whitelist)(int));
 const char *file_type_str(mode_t mode);
-int copy_file(const char *dst, const char *src);
+int copy_regfile(const char *dst, const char *src);
 int lock_reg(int fd, int cmd, int type, off_t offset, int whence, off_t len);
 
 /* misc */

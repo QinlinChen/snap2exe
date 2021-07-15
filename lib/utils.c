@@ -322,7 +322,7 @@ const char *file_type_str(mode_t mode)
     return "unknown";
 }
 
-int copy_file(const char *dst_file, const char *src_file)
+int copy_regfile(const char *dst_file, const char *src_file)
 {
     int saved_errno;
     int src_fd = -1, dst_fd = -1;
