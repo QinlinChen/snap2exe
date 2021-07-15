@@ -252,8 +252,12 @@ static char *generate_restore_code(struct snapshot *ss, uintptr_t base, size_t *
             s2e_unix_err("exceed max path length");
             goto errout;
         }
+
+        struct stat statbuf;
         if (access(path, F_OK) != 0)
             continue;
+        if (stat(path, &statbuf) != 0 || !S_ISREG(statbuf.st_mode))
+            continue; /* Ignore all but regular files currently. */
 
         INS_SYSCALL3(cbuf, SYS_open, base + (dbuf - buf), pfdstat->oflag, 0);
         INS_STR(dbuf, path);

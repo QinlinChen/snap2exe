@@ -322,7 +322,7 @@ static int dump_opened_files(struct snapshot *ss)
         snprintf(src_link, sizeof(src_link), "/proc/%d/fd/%d", ss->pid, pfdstat->fd);
 
         if (S_ISREG(pfdstat->filestat.st_mode)) {
-            if (copy_file(dump_path, src_link) < 0) {
+            if (copy_regfile(dump_path, src_link) < 0) {
                 s2e_unix_err("copy '%s' to '%s' error", src_link, dump_path);
                 return -1;
             }
@@ -333,11 +333,9 @@ static int dump_opened_files(struct snapshot *ss)
                 s2e_unix_err("fail to readlink of '%s'", src_link);
                 return -1;
             }
-            if (!strcmp(src_path, "/dev/null") || !strcmp(src_path, "/dev/zero")) {
-                if (symlink(src_path, dump_path) != 0) {
-                    s2e_unix_err("fail to link %s to %s", dump_path, src_path);
-                    return -1;
-                }
+            if (symlink(src_path, dump_path) != 0) {
+                s2e_unix_err("fail to link %s to %s", dump_path, src_path);
+                return -1;
             }
         }
     }
