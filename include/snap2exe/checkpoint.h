@@ -5,10 +5,9 @@
 extern "C" {
 #endif
 
-enum {
-    S2E_SCHED_MUST,
-    S2E_SCHED_PROB,
-};
+#define S2E_SCHED_MUST      0x1
+#define S2E_SCHED_PROB      0x2
+#define S2E_SCHED_THROTTLE  0x4
 
 #define S2E_DEFAULT_SAVE_DIR ((char *)-1)
 
