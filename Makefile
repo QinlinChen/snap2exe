@@ -1,6 +1,7 @@
 ifeq ($(PREFIX),)
-	PREFIX := $$HOME/local/snap2exe
+	PREFIX := $(HOME)/local/snap2exe
 endif
+override PREFIX := $(abspath $(PREFIX))
 
 build_dir := ./build
 
